@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StockFlow — Gestion de stock</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#080c14; --bg2:#0d1320; --bg3:#111827;
+      --border:#1e2840; --border2:#2a3555;
+      --accent:#3b82f6; --accent2:#60a5fa;
+      --green:#10b981; --green2:#34d399;
+      --red:#ef4444; --red2:#f87171;
+      --yellow:#f59e0b; --yellow2:#fbbf24;
+      --text:#f1f5f9; --text2:#94a3b8; --text3:#475569;
+      --radius:10px; --font:'JetBrains Mono',monospace; --font-d:'Syne',sans-serif;
+    }
+    html { scroll-behavior:smooth; }
+    body { font-family:var(--font); background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden; }
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:var(--bg); }
+    ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+
+    /* SETUP */
+    #setup-screen { min-height:100vh; display:flex; align-items:center; justify-content:center; background:radial-gradient(ellipse 80% 60% at 50% 0%,#0f1f3d,var(--bg) 70%); padding:24px; }
+    .setup-box { width:100%; max-width:560px; animation:fadeUp .5s ease both; }
+    .setup-logo { text-align:center; margin-bottom:36px; }
+    .setup-logo .icon { font-size:52px; display:block; margin-bottom:10px; }
+    .setup-logo h1 { font-family:var(--font-d); font-size:2.2rem; font-weight:800; letter-spacing:-1px; }
+    .setup-logo p { color:var(--text2); font-size:.85rem; margin-top:6px; }
+    .card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:24px; }
+    .steps-box { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:16px 18px; margin-bottom:18px; font-size:.78rem; color:var(--text2); line-height:2; }
+    .steps-box strong { color:var(--accent2); }
+    .step-num { color:var(--green); font-weight:600; }
+
+    /* FORMS */
+    .field { margin-bottom:14px; }
+    .field label { display:block; font-size:.7rem; color:var(--text2); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; }
+    input[type=text], input[type=number], select, textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:var(--font); font-size:.85rem; padding:10px 13px; outline:none; transition:border-color .2s,box-shadow .2s; }
+    input:focus, select:focus, textarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,130,246,.15); }
+    textarea { resize:vertical; min-height:65px; }
+    .fields-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+    /* BUTTONS */
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:9px 18px; border:none; border-radius:8px; font-family:var(--font); font-size:.82rem; font-weight:600; cursor:pointer; transition:all .18s; white-space:nowrap; }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    .btn-primary { background:var(--accent); color:#fff; }
+    .btn-primary:hover:not(:disabled) { background:var(--accent2); transform:translateY(-1px); }
+    .btn-success { background:var(--green); color:#fff; }
+    .btn-success:hover:not(:disabled) { background:var(--green2); transform:translateY(-1px); }
+    .btn-danger  { background:var(--red); color:#fff; }
+    .btn-danger:hover:not(:disabled)  { background:var(--red2); transform:translateY(-1px); }
+    .btn-ghost   { background:transparent; color:var(--text2); border:1px solid var(--border); }
+    .btn-ghost:hover:not(:disabled)   { border-color:var(--border2); color:var(--text); }
+    .btn-sm { padding:5px 12px; font-size:.76rem; }
+    .btn-icon { padding:6px 8px; }
+
+    /* BADGES */
+    .badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:4px; font-size:.7rem; font-weight:600; letter-spacing:.5px; }
+    .badge-blue   { background:rgba(59,130,246,.15);  color:var(--accent2); border:1px solid rgba(59,130,246,.25); }
+    .badge-green  { background:rgba(16,185,129,.15);  color:var(--green2);  border:1px solid rgba(16,185,129,.25); }
+    .badge-red    { background:rgba(239,68,68,.15);   color:var(--red2);    border:1px solid rgba(239,68,68,.25); }
+    .badge-yellow { background:rgba(245,158,11,.15);  color:var(--yellow2); border:1px solid rgba(245,158,11,.25); }
+    .badge-gray   { background:rgba(71,85,105,.2);    color:var(--text2);   border:1px solid var(--border); }
+
+    /* APP */
+    #app { display:none; }
+    .topbar { position:sticky; top:0; z-index:200; height:56px; background:rgba(8,12,20,.92); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 18px; }
+    .topbar-brand { font-family:var(--font-d); font-weight:800; font-size:1.05rem; color:var(--accent2); margin-right:24px; display:flex; align-items:center; gap:8px; white-space:nowrap; }
+    .topbar-nav { display:flex; align-items:center; flex:1; overflow-x:auto; }
+    .nav-btn { background:none; border:none; border-bottom:2px solid transparent; color:var(--text2); font-family:var(--font); font-size:.76rem; padding:18px 13px; cursor:pointer; transition:all .18s; white-space:nowrap; }
+    .nav-btn:hover { color:var(--text); }
+    .nav-btn.active { color:var(--accent2); border-bottom-color:var(--accent); }
+    .topbar-actions { display:flex; align-items:center; gap:8px; margin-left:auto; padding-left:12px; }
+    .main { padding:22px 18px; max-width:1360px; margin:0 auto; }
+    .page { display:none; animation:fadeUp .25s ease both; }
+    .page.active { display:block; }
+    .page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
+    .page-title { font-family:var(--font-d); font-size:1.35rem; font-weight:700; }
+
+    /* STATS */
+    .stats-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:13px; margin-bottom:20px; }
+    .stat-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:17px 18px; position:relative; overflow:hidden; transition:border-color .2s,transform .2s; }
+    .stat-card:hover { border-color:var(--border2); transform:translateY(-2px); }
+    .stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; }
+    .stat-card.accent::before { background:var(--accent); }
+    .stat-card.green::before  { background:var(--green); }
+    .stat-card.red::before    { background:var(--red); }
+    .stat-card.yellow::before { background:var(--yellow); }
+    .stat-label { font-size:.68rem; color:var(--text2); text-transform:uppercase; letter-spacing:1px; margin-bottom:9px; }
+    .stat-value { font-family:var(--font-d); font-size:1.9rem; font-weight:800; line-height:1; }
+    .stat-value.accent { color:var(--accent2); } .stat-value.green { color:var(--green2); } .stat-value.red { color:var(--red2); } .stat-value.yellow { color:var(--yellow2); }
+    .stat-sub { font-size:.7rem; color:var(--text3); margin-top:5px; }
+    .stat-icon { position:absolute; right:14px; top:50%; transform:translateY(-50%); font-size:1.8rem; opacity:.1; }
+
+    /* TABLES */
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:.81rem; }
+    thead tr { border-bottom:1px solid var(--border); }
+    thead th { padding:9px 11px; text-align:left; font-size:.68rem; color:var(--text3); text-transform:uppercase; letter-spacing:.8px; font-weight:600; }
+    tbody tr { border-bottom:1px solid rgba(30,40,64,.5); transition:background .12s; }
+    tbody tr:hover { background:rgba(255,255,255,.025); }
+    tbody td { padding:10px 11px; vertical-align:middle; }
+    .td-m { color:var(--text2); font-size:.77rem; }
+
+    /* STOCK CARDS */
+    .stock-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:13px; }
+    .stock-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:17px; position:relative; transition:transform .18s,border-color .18s; overflow:hidden; }
+    .stock-card:hover { transform:translateY(-3px); border-color:var(--border2); }
+    .stock-top { height:3px; position:absolute; top:0; left:0; right:0; }
+    .stock-card .s-name { font-weight:600; font-size:.88rem; margin-bottom:2px; }
+    .stock-card .s-cat  { font-size:.7rem; color:var(--text3); margin-bottom:13px; }
+    .stock-card .s-qty  { font-family:var(--font-d); font-size:2rem; font-weight:800; line-height:1; }
+    .stock-card .s-unit { font-size:.78rem; color:var(--text2); margin-left:4px; }
+    .progress-bar { margin-top:11px; height:4px; background:var(--bg); border-radius:2px; overflow:hidden; }
+    .progress-fill { height:100%; border-radius:2px; transition:width .5s ease; }
+    .stock-card .s-seuil { font-size:.68rem; color:var(--text3); margin-top:5px; }
+
+    /* MODAL */
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.75); backdrop-filter:blur(6px); z-index:500; align-items:center; justify-content:center; padding:16px; }
+    .modal-overlay.open { display:flex; animation:fadeIn .2s ease; }
+    .modal { background:var(--bg2); border:1px solid var(--border2); border-radius:14px; padding:26px; width:100%; max-width:490px; max-height:90vh; overflow-y:auto; animation:scaleIn .2s ease; box-shadow:0 20px 60px rgba(0,0,0,.7); }
+    .modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .modal-title { font-family:var(--font-d); font-size:1.05rem; font-weight:700; }
+    .modal-close { background:none; border:none; color:var(--text2); cursor:pointer; font-size:1.2rem; padding:2px 6px; border-radius:4px; }
+    .modal-close:hover { background:var(--border); color:var(--text); }
+    .modal-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+    .type-toggle { display:flex; gap:10px; margin-bottom:16px; }
+    .type-btn { flex:1; padding:11px; border-radius:8px; cursor:pointer; border:1px solid var(--border); background:transparent; font-family:var(--font); font-size:.8rem; font-weight:600; color:var(--text2); transition:all .18s; }
+    .type-btn.active-e { border-color:var(--green); background:rgba(16,185,129,.1); color:var(--green2); }
+    .type-btn.active-s { border-color:var(--red);   background:rgba(239,68,68,.1);  color:var(--red2); }
+
+    /* MISC */
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:16px; }
+    @media(max-width:680px){ .grid2 { grid-template-columns:1fr; } }
+    .error-bar { background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.3); border-radius:8px; padding:9px 14px; color:var(--red2); font-size:.8rem; margin-bottom:14px; display:none; }
+    .error-bar.show { display:block; }
+    #toast { position:fixed; bottom:22px; right:22px; z-index:999; background:var(--bg2); border:1px solid var(--green); border-radius:10px; padding:11px 18px; color:var(--green2); font-size:.8rem; box-shadow:0 8px 32px rgba(0,0,0,.5); opacity:0; transform:translateY(12px); transition:all .25s ease; pointer-events:none; }
+    #toast.show { opacity:1; transform:translateY(0); }
+    .spinner { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,.2); border-top-color:#fff; border-radius:50%; animation:spin .6s linear infinite; }
+    .alert-item { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border); }
+    .alert-item:last-child { border-bottom:none; }
+    .empty-state { text-align:center; padding:40px 20px; color:var(--text3); font-size:.85rem; }
+    .ts-note { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 12px; font-size:.73rem; color:var(--text2); margin-bottom:13px; }
+    .period-tabs { display:flex; gap:6px; }
+    .recap-row { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border); }
+    .recap-row:last-child { border-bottom:none; }
+    canvas { display:block; }
+
+    @keyframes fadeUp  { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
+    @keyframes scaleIn { from{transform:scale(.95);opacity:0} to{transform:scale(1);opacity:1} }
+    @keyframes spin    { to{transform:rotate(360deg)} }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ SETUP ═══════════════ -->
+<div id="setup-screen">
+  <div class="setup-box">
+    <div class="setup-logo">
+      <span class="icon">📦</span>
+      <h1>StockFlow</h1>
+      <p>Gestion de stock · Base de données Google Sheets</p>
+    </div>
+    <div class="card">
+      <div class="steps-box">
+        <div><strong>⚙ Configuration Google Apps Script</strong></div>
+        <div><span class="step-num">1.</span> Google Sheets → Extensions → Apps Script</div>
+        <div><span class="step-num">2.</span> Ctrl+A → Suppr → coller <strong>Code.gs</strong> → Ctrl+S</div>
+        <div><span class="step-num">3.</span> Exécuter <strong>TEST_run</strong> → vérifier les logs</div>
+        <div><span class="step-num">4.</span> Déployer → <strong>Nouvelle déploiement</strong> → Web App → Tout le monde</div>
+        <div><span class="step-num">5.</span> Coller l'URL <code style="color:var(--yellow2)">/exec</code> ci-dessous</div>
+      </div>
+      <div class="field">
+        <label>URL du déploiement Apps Script</label>
+        <input type="text" id="setup-url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+      </div>
+      <div id="setup-error" class="error-bar"></div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn btn-primary" onclick="connectGSheet()">Connecter →</button>
+        <button class="btn btn-ghost"   onclick="startDemo()">Mode démo</button>
+      </div>
+      <div style="text-align:center;margin-top:12px">
+        <a style="color:var(--text3);font-size:.76rem;cursor:pointer;text-decoration:underline" onclick="tryLastUrl()">↩ Reprendre la dernière session</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ APP ═══════════════ -->
+<div id="app">
+  <nav class="topbar">
+    <div class="topbar-brand">📦 STOCKFLOW</div>
+    <div class="topbar-nav">
+      <button class="nav-btn active" onclick="goPage('dashboard',this)">◈ Dashboard</button>
+      <button class="nav-btn"        onclick="goPage('stock',this)">▤ Stock</button>
+      <button class="nav-btn"        onclick="goPage('mouvements',this)">⇅ Mouvements</button>
+      <button class="nav-btn"        onclick="goPage('recap',this)">◎ Récap</button>
+      <button class="nav-btn"        onclick="goPage('produits',this)">⊕ Produits</button>
+    </div>
+    <div class="topbar-actions">
+      <span id="alert-badge" class="badge badge-yellow" style="display:none"></span>
+      <span id="demo-badge"  class="badge badge-gray"   style="display:none">DÉMO</span>
+      <span id="sync-spin"   style="display:none"><span class="spinner"></span></span>
+      <button class="btn btn-ghost btn-sm" onclick="refresh()">↻</button>
+      <button class="btn btn-success btn-sm" onclick="openMouvModal('ENTREE')">+ Entrée</button>
+      <button class="btn btn-danger  btn-sm" onclick="openMouvModal('SORTIE')">− Sortie</button>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="goSetup()" title="Paramètres">⚙</button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div id="app-error" class="error-bar"></div>
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div class="page-header">
+        <div class="page-title">Vue d'ensemble</div>
+        <button class="btn btn-ghost btn-sm" onclick="refresh()">↻ Actualiser</button>
+      </div>
+      <div class="stats-grid" id="dash-stats"></div>
+      <div class="grid2">
+        <div class="card">
+          <div style="font-size:.7rem;color:var(--text2);letter-spacing:1px;margin-bottom:13px">▸ FLUX 7 JOURS</div>
+          <canvas id="chart-flux" height="175"></canvas>
+        </div>
+        <div class="card">
+          <div style="font-size:.7rem;color:var(--text2);letter-spacing:1px;margin-bottom:13px">▸ ALERTES STOCK</div>
+          <div id="dash-alertes"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-size:.7rem;color:var(--text2);letter-spacing:1px;margin-bottom:13px">▸ DERNIERS MOUVEMENTS</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Horodatage</th><th>Produit</th><th>Type</th><th>Quantité</th><th>Motif</th><th>Opérateur</th><th>Stock après</th></tr></thead>
+          <tbody id="dash-mouv-body"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- STOCK -->
+    <div id="page-stock" class="page">
+      <div class="page-header">
+        <div class="page-title">Stock en temps réel</div>
+        <button class="btn btn-ghost btn-sm" onclick="refresh()">↻ Actualiser</button>
+      </div>
+      <div class="stock-grid" id="stock-grid"></div>
+    </div>
+
+    <!-- MOUVEMENTS -->
+    <div id="page-mouvements" class="page">
+      <div class="page-header">
+        <div class="page-title">Historique des mouvements</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-success btn-sm" onclick="openMouvModal('ENTREE')">+ Entrée</button>
+          <button class="btn btn-danger  btn-sm" onclick="openMouvModal('SORTIE')">− Sortie</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap"><table>
+          <thead><tr><th>⏱ Horodatage</th><th>Produit</th><th>Type</th><th>Quantité</th><th>Motif</th><th>Opérateur</th><th>Avant</th><th>Après</th></tr></thead>
+          <tbody id="mouv-body"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- RECAP -->
+    <div id="page-recap" class="page">
+      <div class="page-header">
+        <div class="page-title">Récapitulatif</div>
+        <div class="period-tabs">
+          <button class="btn btn-primary btn-sm" id="tab-jour"    onclick="setRecapPeriod('jour')">Aujourd'hui</button>
+          <button class="btn btn-ghost  btn-sm" id="tab-semaine" onclick="setRecapPeriod('semaine')">Cette semaine</button>
+          <button class="btn btn-ghost  btn-sm" id="tab-mois"    onclick="setRecapPeriod('mois')">Ce mois</button>
+        </div>
+      </div>
+      <div class="stats-grid" id="recap-stats"></div>
+      <div class="grid2">
+        <div class="card">
+          <div style="font-size:.7rem;color:var(--text2);letter-spacing:1px;margin-bottom:13px">▸ FLUX PAR JOUR</div>
+          <canvas id="chart-recap" height="175"></canvas>
+        </div>
+        <div class="card">
+          <div style="font-size:.7rem;color:var(--text2);letter-spacing:1px;margin-bottom:13px">▸ PAR PRODUIT</div>
+          <div id="recap-produits"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRODUITS -->
+    <div id="page-produits" class="page">
+      <div class="page-header">
+        <div class="page-title">Gestion des produits</div>
+        <button class="btn btn-primary" onclick="openProdModal()">+ Nouveau produit</button>
+      </div>
+      <div class="card">
+        <div class="table-wrap"><table>
+          <thead><tr><th>Nom</th><th>Catégorie</th><th>Unité</th><th>Stock actuel</th><th>Seuil</th><th>Description</th><th>Actions</th></tr></thead>
+          <tbody id="produits-body"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MOUVEMENT -->
+<div id="modal-mouv" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">Nouveau mouvement</div>
+      <button class="modal-close" onclick="closeModal('modal-mouv')">✕</button>
+    </div>
+    <div class="type-toggle">
+      <button class="type-btn active-e" id="type-e" onclick="setMouvType('ENTREE')">▲ ENTRÉE</button>
+      <button class="type-btn"          id="type-s" onclick="setMouvType('SORTIE')">▼ SORTIE</button>
+    </div>
+    <div class="field">
+      <label>Produit *</label>
+      <select id="mouv-produit"><option value="">— Sélectionner —</option></select>
+    </div>
+    <div class="fields-row">
+      <div class="field"><label>Quantité *</label><input type="number" id="mouv-qty" min="1" value="1"></div>
+      <div class="field"><label>Opérateur</label><input type="text" id="mouv-op" placeholder="Votre nom"></div>
+    </div>
+    <div class="field"><label>Motif</label><input type="text" id="mouv-motif" placeholder="Réappro, Production, Perte…"></div>
+    <div class="ts-note">⏱ Horodatage automatique : <strong id="ts-now"></strong></div>
+    <div id="mouv-error" class="error-bar"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-mouv')">Annuler</button>
+      <button class="btn btn-success" id="mouv-save-btn" onclick="saveMouvement()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRODUIT -->
+<div id="modal-prod" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="prod-modal-title">Nouveau produit</div>
+      <button class="modal-close" onclick="closeModal('modal-prod')">✕</button>
+    </div>
+    <div class="field"><label>Nom *</label><input type="text" id="prod-nom" placeholder="ex : Farine T55"></div>
+    <div class="fields-row">
+      <div class="field"><label>Catégorie</label><input type="text" id="prod-cat" placeholder="Épicerie…"></div>
+      <div class="field"><label>Unité</label><input type="text" id="prod-unite" value="unite" placeholder="kg, L, unité…"></div>
+    </div>
+    <div class="fields-row">
+      <div class="field"><label>Stock initial</label><input type="number" id="prod-stock" value="0" min="0"></div>
+      <div class="field"><label>Seuil d'alerte</label><input type="number" id="prod-seuil" value="10" min="0"></div>
+    </div>
+    <div class="field"><label>Description</label><textarea id="prod-desc" rows="2" placeholder="Optionnel…"></textarea></div>
+    <input type="hidden" id="prod-edit-id">
+    <div id="prod-error" class="error-bar"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost"   onclick="closeModal('modal-prod')">Annuler</button>
+      <button class="btn btn-primary" onclick="saveProduit()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════ */
+var SCRIPT_URL = '';
+var IS_DEMO    = false;
+var JSONP_ID   = 0;
+var STATE = { stocks:[], produits:[], mouvements:[], recap:null, recapPeriod:'jour' };
+var currentMouvType = 'ENTREE';
+
+/* ══════════════════════════════════════════════
+   DEMO DATA
+   Clés identiques à ce que retourne Code.gs
+   (sans accents, sans espaces)
+══════════════════════════════════════════════ */
+var DEMO = {
+  stocks: [
+    {id:'P1',nom:'Farine T55',     categorie:'Epicerie',  unite:'kg', stock:150, seuilAlerte:50,  description:'Farine de ble'},
+    {id:'P2',nom:'Sucre Blanc',    categorie:'Epicerie',  unite:'kg', stock:8,   seuilAlerte:20,  description:''},
+    {id:'P3',nom:'Huile Tournesol',categorie:'Epicerie',  unite:'L',  stock:45,  seuilAlerte:10,  description:''},
+    {id:'P4',nom:'Sel Fin',        categorie:'Condiments',unite:'kg', stock:0,   seuilAlerte:5,   description:''},
+    {id:'P5',nom:'Levure Seche',   categorie:'Epicerie',  unite:'g',  stock:2500,seuilAlerte:500, description:''},
+    {id:'P6',nom:'Beurre',         categorie:'Laitier',   unite:'kg', stock:12,  seuilAlerte:8,   description:''}
+  ],
+  mouvements: [
+    {ID:'M1',Horodatage:new Date().toISOString(),               ProduitID:'P1',Produit:'Farine T55',    Type:'ENTREE',Quantite:50, Motif:'Reappro',    Operateur:'Alice',StockAvant:100,StockApres:150},
+    {ID:'M2',Horodatage:new Date(Date.now()-3.6e6).toISOString(),ProduitID:'P2',Produit:'Sucre Blanc',   Type:'SORTIE',Quantite:12, Motif:'Production',  Operateur:'Bob',  StockAvant:20, StockApres:8},
+    {ID:'M3',Horodatage:new Date(Date.now()-7.2e6).toISOString(),ProduitID:'P3',Produit:'Huile Tournesol',Type:'ENTREE',Quantite:20,Motif:'Commande',    Operateur:'Alice',StockAvant:25, StockApres:45},
+    {ID:'M4',Horodatage:new Date(Date.now()-864e5).toISOString(),ProduitID:'P4',Produit:'Sel Fin',       Type:'SORTIE',Quantite:3,  Motif:'Cuisine',     Operateur:'Bob',  StockAvant:3,  StockApres:0}
+  ],
+  produits: [],
+  recap: {
+    totalMouvements:42,totalEntrees:320,totalSorties:185,
+    parProduit:{'Farine T55':{entrees:200,sorties:80,nb:15},'Sucre Blanc':{entrees:50,sorties:62,nb:10},'Huile Tournesol':{entrees:70,sorties:43,nb:8}},
+    parJour:{'2026-04-15':{entrees:80,sorties:30},'2026-04-16':{entrees:50,sorties:60},'2026-04-17':{entrees:120,sorties:45},'2026-04-18':{entrees:30,sorties:80},'2026-04-19':{entrees:90,sorties:50},'2026-04-20':{entrees:60,sorties:35},'2026-04-21':{entrees:110,sorties:70}}
+  }
+};
+DEMO.produits = DEMO.stocks.map(function(s){
+  return {ID:s.id,Nom:s.nom,Categorie:s.categorie,Unite:s.unite,StockInitial:s.stock,SeuilAlerte:s.seuilAlerte,Description:s.description};
+});
+
+/* ══════════════════════════════════════════════
+   SETUP
+══════════════════════════════════════════════ */
+function connectGSheet() {
+  var url = document.getElementById('setup-url').value.trim();
+  var err = document.getElementById('setup-error');
+  if (!url.includes('script.google.com')) {
+    err.textContent = 'URL invalide — elle doit contenir script.google.com';
+    err.classList.add('show'); return;
+  }
+  err.classList.remove('show');
+  SCRIPT_URL = url;
+  localStorage.setItem('sf_url', url);
+  IS_DEMO = false;
+  launchApp();
+}
+function startDemo() {
+  IS_DEMO = true; SCRIPT_URL = '';
+  document.getElementById('demo-badge').style.display = '';
+  loadDemo();
+  launchApp();
+}
+function tryLastUrl() {
+  var u = localStorage.getItem('sf_url');
+  if (!u) return;
+  document.getElementById('setup-url').value = u;
+  connectGSheet();
+}
+function goSetup() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('setup-screen').style.display = 'flex';
+}
+function launchApp() {
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  refresh();
+}
+function loadDemo() {
+  STATE.stocks    = DEMO.stocks;
+  STATE.produits  = DEMO.produits;
+  STATE.mouvements= DEMO.mouvements;
+  STATE.recap     = DEMO.recap;
+}
+
+/* ══════════════════════════════════════════════
+   JSONP API (contourne CORS)
+══════════════════════════════════════════════ */
+function apiCall(params) {
+  return new Promise(function(resolve, reject) {
+    if (IS_DEMO) { resolve(null); return; }
+    var cb  = '_sf_' + (++JSONP_ID);
+    var tid = setTimeout(function() {
+      delete window[cb];
+      reject(new Error('Timeout — vérifie que le déploiement est public et que l\'URL est correcte'));
+    }, 15000);
+    window[cb] = function(data) {
+      clearTimeout(tid); delete window[cb];
+      if (data && data.error) reject(new Error(data.error));
+      else resolve(data);
+    };
+    var parts = [];
+    var p = Object.assign({}, params, {callback: cb});
+    for (var k in p) {
+      if (p.hasOwnProperty(k)) {
+        var v = p[k];
+        parts.push(k + '=' + encodeURIComponent(typeof v === 'object' ? JSON.stringify(v) : v));
+      }
+    }
+    var s = document.createElement('script');
+    s.src = SCRIPT_URL + '?' + parts.join('&');
+    s.onerror = function() {
+      clearTimeout(tid); delete window[cb];
+      reject(new Error('Impossible de joindre le script — URL incorrecte ?'));
+    };
+    document.head.appendChild(s);
+    setTimeout(function(){ try{ s.parentNode && s.parentNode.removeChild(s); }catch(e){} }, 20000);
+  });
+}
+
+/* ══════════════════════════════════════════════
+   REFRESH
+══════════════════════════════════════════════ */
+function refresh() {
+  if (IS_DEMO) { renderAll(); return; }
+  setLoading(true); setError('');
+  Promise.allSettled([
+    apiCall({action:'getStock'}),
+    apiCall({action:'getProduits'}),
+    apiCall({action:'getMouvements'}),
+    apiCall({action:'getRecap', periode: STATE.recapPeriod})
+  ]).then(function(results) {
+    var s=results[0],p=results[1],m=results[2],r=results[3];
+    if (s.status==='fulfilled' && s.value) STATE.stocks     = s.value.stocks    || [];
+    if (p.status==='fulfilled' && p.value) STATE.produits   = p.value.produits  || [];
+    if (m.status==='fulfilled' && m.value) STATE.mouvements = (m.value.mouvements||[]).slice(0,100);
+    if (r.status==='fulfilled' && r.value) STATE.recap      = r.value;
+    var firstErr = results.find(function(x){ return x.status==='rejected'; });
+    if (firstErr) setError(firstErr.reason.message);
+    renderAll();
+  }).catch(function(e){ setError(e.message); })
+    .finally(function(){ setLoading(false); });
+}
+
+/* ══════════════════════════════════════════════
+   RENDER ALL
+══════════════════════════════════════════════ */
+function renderAll() {
+  renderDashboard();
+  renderStock();
+  renderMouvements();
+  renderProduits();
+  renderRecap();
+  updateAlertBadge();
+}
+
+/* ── DASHBOARD ───────────────────────────────────────────────── */
+function renderDashboard() {
+  var stocks   = STATE.stocks;
+  var alertes  = stocks.filter(function(s){ return +s.stock <= +s.seuilAlerte; });
+  var ruptures = stocks.filter(function(s){ return +s.stock === 0; });
+
+  document.getElementById('dash-stats').innerHTML =
+    statCard('Produits',   stocks.length,   'références actives','accent','▤') +
+    statCard('Alertes',    alertes.length,  'sous le seuil',     'yellow','⚠') +
+    statCard('Ruptures',   ruptures.length, 'stock à zéro',      'red',   '⊗') +
+    statCard('Mouvements', STATE.mouvements.length,'enregistrés','green','⇅');
+
+  var aEl = document.getElementById('dash-alertes');
+  if (!alertes.length) {
+    aEl.innerHTML = '<div style="color:var(--green2);font-size:.84rem;padding-top:8px">✓ Tous les stocks sont OK</div>';
+  } else {
+    aEl.innerHTML = alertes.map(function(s){
+      return '<div class="alert-item"><div><div style="font-size:.87rem;font-weight:500">' + s.nom + '</div>' +
+             '<div style="font-size:.7rem;color:var(--text3)">Seuil : ' + s.seuilAlerte + ' ' + s.unite + '</div></div>' +
+             '<span class="badge ' + (s.stock===0?'badge-red':'badge-yellow') + '">' +
+             (s.stock===0?'RUPTURE':s.stock+' '+s.unite) + '</span></div>';
+    }).join('');
+  }
+
+  var body = document.getElementById('dash-mouv-body');
+  var rows = STATE.mouvements.slice(0,8);
+  body.innerHTML = rows.length ? rows.map(mouvRow).join('') : '<tr><td colspan="7" class="empty-state">Aucun mouvement</td></tr>';
+
+  drawChart('chart-flux', chartDataFromRecap(STATE.recap));
+}
+
+/* ── STOCK GRID ──────────────────────────────────────────────── */
+function renderStock() {
+  var grid = document.getElementById('stock-grid');
+  var stocks = STATE.stocks;
+  if (!stocks.length) {
+    grid.innerHTML = '<div class="empty-state"><div style="font-size:2.2rem;margin-bottom:8px">📦</div>Aucun produit — créez-en dans l\'onglet Produits</div>';
+    return;
+  }
+  grid.innerHTML = stocks.map(function(s) {
+    var isRup = +s.stock === 0;
+    var isAlt = !isRup && +s.stock <= +s.seuilAlerte;
+    var color = isRup ? 'var(--red)' : isAlt ? 'var(--yellow)' : 'var(--green)';
+    var cls   = isRup ? 'badge-red' : isAlt ? 'badge-yellow' : 'badge-green';
+    var label = isRup ? 'RUPTURE' : isAlt ? 'ALERTE' : 'OK';
+    var pct   = +s.seuilAlerte > 0 ? Math.min(100, (+s.stock / (+s.seuilAlerte * 3)) * 100) : 80;
+    return '<div class="stock-card">' +
+      '<div class="stock-top" style="background:' + color + '"></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:11px">' +
+        '<div><div class="s-name">' + s.nom + '</div><div class="s-cat">' + (s.categorie||'—') + '</div></div>' +
+        '<span class="badge ' + cls + '">' + label + '</span></div>' +
+      '<div><span class="s-qty" style="color:' + color + '">' + s.stock + '</span><span class="s-unit">' + s.unite + '</span></div>' +
+      '<div class="progress-bar"><div class="progress-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
+      '<div class="s-seuil">Seuil : ' + s.seuilAlerte + ' ' + s.unite + '</div></div>';
+  }).join('');
+}
+
+/* ── MOUVEMENTS ──────────────────────────────────────────────── */
+function renderMouvements() {
+  var body = document.getElementById('mouv-body');
+  var rows = STATE.mouvements;
+  body.innerHTML = rows.length
+    ? rows.map(function(m){
+        return '<tr>' +
+          '<td class="td-m">' + fmtDate(m.Horodatage) + '</td>' +
+          '<td><strong>' + (m.Produit||'') + '</strong></td>' +
+          '<td><span class="badge ' + (m.Type==='ENTREE'?'badge-green':'badge-red') + '">' + m.Type + '</span></td>' +
+          '<td style="color:' + (m.Type==='ENTREE'?'var(--green2)':'var(--red2)') + ';font-weight:700">' + (m.Type==='ENTREE'?'▲ +':'▼ −') + m.Quantite + '</td>' +
+          '<td class="td-m">' + (m.Motif||'—') + '</td>' +
+          '<td class="td-m">' + (m.Operateur||'—') + '</td>' +
+          '<td class="td-m">' + (m.StockAvant!==undefined?m.StockAvant:'—') + '</td>' +
+          '<td style="font-weight:700">' + (m.StockApres!==undefined?m.StockApres:'—') + '</td></tr>';
+      }).join('')
+    : '<tr><td colspan="8" class="empty-state">Aucun mouvement enregistré</td></tr>';
+}
+
+/* ── PRODUITS ─────────────────────────────────────────────────── */
+function renderProduits() {
+  var body  = document.getElementById('produits-body');
+  var prods = STATE.produits;
+  if (!prods.length) { body.innerHTML='<tr><td colspan="7" class="empty-state">Aucun produit.</td></tr>'; return; }
+  body.innerHTML = prods.map(function(p) {
+    var s     = STATE.stocks.find(function(x){ return x.id===p.ID; });
+    var stock = s ? +s.stock : +p.StockInitial;
+    var color = stock===0?'var(--red2)':stock<=+p.SeuilAlerte?'var(--yellow2)':'var(--green2)';
+    return '<tr>' +
+      '<td><strong>' + p.Nom + '</strong></td>' +
+      '<td><span class="badge badge-blue">' + (p.Categorie||'—') + '</span></td>' +
+      '<td class="td-m">' + p.Unite + '</td>' +
+      '<td style="color:' + color + ';font-weight:700">' + stock + '</td>' +
+      '<td class="td-m">' + p.SeuilAlerte + '</td>' +
+      '<td class="td-m" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (p.Description||'—') + '</td>' +
+      '<td><div style="display:flex;gap:6px">' +
+        '<button class="btn btn-ghost btn-sm btn-icon" onclick="editProduit(\'' + p.ID + '\')" title="Modifier">✎</button>' +
+        '<button class="btn btn-danger btn-sm btn-icon" onclick="delProduit(\'' + p.ID + '\')" title="Supprimer">✕</button>' +
+      '</div></td></tr>';
+  }).join('');
+}
+
+/* ── RECAP ────────────────────────────────────────────────────── */
+function renderRecap() {
+  var r = STATE.recap;
+  var el = document.getElementById('recap-stats');
+  if (!r) { el.innerHTML='<div class="empty-state">Aucune donnée</div>'; return; }
+  el.innerHTML =
+    statCard('Mouvements',   r.totalMouvements, 'sur la période','accent','⇅') +
+    statCard('Entrées',      r.totalEntrees,    'unités reçues', 'green', '▲') +
+    statCard('Sorties',      r.totalSorties,    'unités sorties','red',   '▼') +
+    statCard('Balance',      r.totalEntrees-r.totalSorties, 'net', r.totalEntrees>=r.totalSorties?'green':'red','≡');
+
+  var chartData = Object.keys(r.parJour||{}).sort().slice(-14).map(function(j){
+    return {label:j.slice(5), entrees:r.parJour[j].entrees, sorties:r.parJour[j].sorties};
+  });
+  drawChart('chart-recap', chartData);
+
+  var items = Object.keys(r.parProduit||{});
+  document.getElementById('recap-produits').innerHTML = items.length
+    ? items.map(function(nom){
+        var d = r.parProduit[nom];
+        var bal = d.entrees - d.sorties;
+        return '<div class="recap-row">' +
+          '<div><div style="font-weight:500;font-size:.87rem">' + nom + '</div>' +
+          '<div style="font-size:.69rem;color:var(--text3)">' + d.nb + ' mouv.</div></div>' +
+          '<div style="display:flex;gap:12px;font-size:.77rem">' +
+          '<span style="color:var(--green2)">+' + d.entrees + '</span>' +
+          '<span style="color:var(--red2)">−' + d.sorties + '</span>' +
+          '<span style="color:' + (bal>=0?'var(--green2)':'var(--red2)') + ';font-weight:700">' + (bal>=0?'+':'') + bal + '</span>' +
+          '</div></div>';
+      }).join('')
+    : '<div class="empty-state" style="padding:20px">Aucun mouvement sur la période</div>';
+}
+
+function setRecapPeriod(p) {
+  STATE.recapPeriod = p;
+  ['jour','semaine','mois'].forEach(function(x) {
+    document.getElementById('tab-'+x).className = 'btn btn-sm ' + (x===p?'btn-primary':'btn-ghost');
+  });
+  if (IS_DEMO) { renderRecap(); return; }
+  setLoading(true);
+  apiCall({action:'getRecap', periode:p})
+    .then(function(r){ if(r){ STATE.recap=r; renderRecap(); } })
+    .catch(function(e){ setError(e.message); })
+    .finally(function(){ setLoading(false); });
+}
+
+/* ══════════════════════════════════════════════
+   MODALS — MOUVEMENT
+══════════════════════════════════════════════ */
+function openMouvModal(type) {
+  currentMouvType = type || 'ENTREE';
+  setMouvType(currentMouvType);
+  var sel = document.getElementById('mouv-produit');
+  sel.innerHTML = '<option value="">— Sélectionner —</option>' +
+    STATE.produits.map(function(p){ return '<option value="'+p.ID+'">'+p.Nom+'</option>'; }).join('');
+  document.getElementById('mouv-qty').value   = 1;
+  document.getElementById('mouv-op').value    = localStorage.getItem('sf_op') || '';
+  document.getElementById('mouv-motif').value = '';
+  document.getElementById('mouv-error').classList.remove('show');
+  document.getElementById('ts-now').textContent = new Date().toLocaleString('fr-FR');
+  document.getElementById('modal-mouv').classList.add('open');
+}
+function setMouvType(t) {
+  currentMouvType = t;
+  document.getElementById('type-e').className = 'type-btn' + (t==='ENTREE'?' active-e':'');
+  document.getElementById('type-s').className = 'type-btn' + (t==='SORTIE'?' active-s':'');
+  document.getElementById('mouv-save-btn').className = 'btn ' + (t==='ENTREE'?'btn-success':'btn-danger');
+}
+function saveMouvement() {
+  var produitId = document.getElementById('mouv-produit').value;
+  var qty       = +document.getElementById('mouv-qty').value;
+  var op        = document.getElementById('mouv-op').value.trim();
+  var motif     = document.getElementById('mouv-motif').value.trim();
+  var err       = document.getElementById('mouv-error');
+  if (!produitId){ err.textContent='Sélectionne un produit.'; err.classList.add('show'); return; }
+  if (!qty||qty<=0){ err.textContent='La quantité doit être > 0.'; err.classList.add('show'); return; }
+  err.classList.remove('show');
+  if (op) localStorage.setItem('sf_op', op);
+  var prod = STATE.produits.find(function(p){ return p.ID===produitId; });
+  if (IS_DEMO) { showToast(currentMouvType==='ENTREE'?'Entrée enregistrée ✓':'Sortie enregistrée ✓'); closeModal('modal-mouv'); return; }
+  apiCall({action:'addMouvement', produitId:produitId, produitNom:prod?prod.Nom:'?', type:currentMouvType, quantite:qty, motif:motif, operateur:op})
+    .then(function(res){ if(res&&res.ok){ showToast(currentMouvType==='ENTREE'?'Entrée enregistrée ✓':'Sortie enregistrée ✓'); closeModal('modal-mouv'); refresh(); } })
+    .catch(function(e){ err.textContent=e.message; err.classList.add('show'); });
+}
+
+/* ══════════════════════════════════════════════
+   MODALS — PRODUIT
+══════════════════════════════════════════════ */
+function openProdModal(data) {
+  document.getElementById('prod-modal-title').textContent = data ? 'Modifier le produit' : 'Nouveau produit';
+  document.getElementById('prod-nom').value    = data && data.nom    || '';
+  document.getElementById('prod-cat').value    = data && data.cat    || '';
+  document.getElementById('prod-unite').value  = data && data.unite  || 'unite';
+  document.getElementById('prod-stock').value  = data && data.stock  || 0;
+  document.getElementById('prod-seuil').value  = data && data.seuil  || 10;
+  document.getElementById('prod-desc').value   = data && data.desc   || '';
+  document.getElementById('prod-edit-id').value= data && data.id     || '';
+  document.getElementById('prod-error').classList.remove('show');
+  document.getElementById('modal-prod').classList.add('open');
+}
+function editProduit(id) {
+  var p = STATE.produits.find(function(x){ return x.ID===id; });
+  if (!p) return;
+  var s = STATE.stocks.find(function(x){ return x.id===id; });
+  openProdModal({ id:p.ID, nom:p.Nom, cat:p.Categorie, unite:p.Unite, stock:s?s.stock:p.StockInitial, seuil:p.SeuilAlerte, desc:p.Description });
+}
+function saveProduit() {
+  var nom   = document.getElementById('prod-nom').value.trim();
+  var err   = document.getElementById('prod-error');
+  if (!nom){ err.textContent='Le nom est requis.'; err.classList.add('show'); return; }
+  err.classList.remove('show');
+  var payload = {
+    nom:nom,
+    categorie:   document.getElementById('prod-cat').value.trim(),
+    unite:       document.getElementById('prod-unite').value.trim() || 'unite',
+    stockInitial:+document.getElementById('prod-stock').value || 0,
+    seuilAlerte: +document.getElementById('prod-seuil').value || 0,
+    description: document.getElementById('prod-desc').value.trim()
+  };
+  var editId = document.getElementById('prod-edit-id').value;
+  if (IS_DEMO){ showToast(editId?'Produit mis à jour ✓':'Produit créé ✓'); closeModal('modal-prod'); return; }
+  if (editId) payload.id = editId;
+  apiCall({action: editId?'updateProduit':'addProduit', nom:payload.nom, categorie:payload.categorie, unite:payload.unite, stockInitial:payload.stockInitial, seuilAlerte:payload.seuilAlerte, description:payload.description, id:payload.id})
+    .then(function(res){ if(res&&res.ok){ showToast(editId?'Produit mis à jour ✓':'Produit créé ✓'); closeModal('modal-prod'); refresh(); } })
+    .catch(function(e){ err.textContent=e.message; err.classList.add('show'); });
+}
+function delProduit(id) {
+  if (!confirm('Supprimer ce produit définitivement ?')) return;
+  if (IS_DEMO){ showToast('Produit supprimé (démo)'); return; }
+  apiCall({action:'deleteProduit', id:id})
+    .then(function(){ showToast('Produit supprimé'); refresh(); })
+    .catch(function(e){ setError(e.message); });
+}
+
+/* ══════════════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════════════ */
+function goPage(id, btn) {
+  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(function(b){ b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+}
+
+/* ══════════════════════════════════════════════
+   CANVAS CHART — avec fallback roundRect
+══════════════════════════════════════════════ */
+function drawChart(canvasId, data) {
+  var canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var W   = canvas.offsetWidth || 420;
+  var H   = 175;
+  canvas.width = W; canvas.height = H;
+  ctx.clearRect(0,0,W,H);
+
+  // Fallback roundRect pour Safari/vieux browsers
+  if (!ctx.roundRect) {
+    ctx.roundRect = function(x,y,w,h,r){ if(h<=0)return; r=Math.min(r,h/2,w/2); ctx.beginPath(); ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h); ctx.lineTo(x,y+h); ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath(); };
+  }
+
+  if (!data || !data.length) {
+    ctx.fillStyle='#475569'; ctx.font='12px JetBrains Mono,monospace'; ctx.textAlign='center';
+    ctx.fillText('Aucune donnée', W/2, H/2); return;
+  }
+
+  var PAD = {top:10,right:8,bottom:34,left:32};
+  var cW  = W - PAD.left - PAD.right;
+  var cH  = H - PAD.top  - PAD.bottom;
+  var maxV= Math.max.apply(null, data.reduce(function(a,d){ a.push(d.entrees||0,d.sorties||0); return a; }, [1]));
+  var slot = cW / data.length;
+  var barW = Math.max(3, slot / 2.6);
+
+  // Grille
+  ctx.strokeStyle='#1e2840'; ctx.lineWidth=1;
+  for (var i=0; i<=4; i++) {
+    var y = PAD.top + cH - (cH*(i/4));
+    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(W-PAD.right,y); ctx.stroke();
+    ctx.fillStyle='#475569'; ctx.font='9px JetBrains Mono,monospace'; ctx.textAlign='right';
+    ctx.fillText(Math.round(maxV*(i/4)), PAD.left-3, y+3);
+  }
+
+  // Barres
+  data.forEach(function(d, i) {
+    var x  = PAD.left + slot*i + slot/2;
+    var eH = Math.max(0, ((d.entrees||0)/maxV)*cH);
+    var sH = Math.max(0, ((d.sorties||0)/maxV)*cH);
+    if (eH > 0) { ctx.fillStyle='#10b981'; ctx.beginPath(); ctx.roundRect(x-barW-1, PAD.top+cH-eH, barW, eH, 2); ctx.fill(); }
+    if (sH > 0) { ctx.fillStyle='#ef4444'; ctx.beginPath(); ctx.roundRect(x+1, PAD.top+cH-sH, barW, sH, 2); ctx.fill(); }
+    ctx.fillStyle='#475569'; ctx.font='9px JetBrains Mono,monospace'; ctx.textAlign='center';
+    ctx.fillText(d.label||'', x, H-6);
+  });
+
+  // Légende
+  var ly=H-4;
+  ctx.fillStyle='#10b981'; ctx.fillRect(PAD.left,ly-7,8,7);
+  ctx.fillStyle='#94a3b8'; ctx.font='9px JetBrains Mono,monospace'; ctx.textAlign='left'; ctx.fillText('Entrées',PAD.left+11,ly);
+  ctx.fillStyle='#ef4444'; ctx.fillRect(PAD.left+60,ly-7,8,7);
+  ctx.fillStyle='#94a3b8'; ctx.fillText('Sorties',PAD.left+71,ly);
+}
+function chartDataFromRecap(recap) {
+  if (!recap||!recap.parJour) return [];
+  return Object.keys(recap.parJour).sort().slice(-7).map(function(j){
+    return {label:j.slice(5), entrees:recap.parJour[j].entrees, sorties:recap.parJour[j].sorties};
+  });
+}
+
+/* ══════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════ */
+function statCard(label, value, sub, color, icon) {
+  return '<div class="stat-card '+color+'">' +
+    '<div class="stat-label">'+label+'</div>' +
+    '<div class="stat-value '+color+'">'+value+'</div>' +
+    '<div class="stat-sub">'+sub+'</div>' +
+    '<div class="stat-icon">'+icon+'</div></div>';
+}
+function mouvRow(m) {
+  return '<tr>' +
+    '<td class="td-m">'+fmtDate(m.Horodatage)+'</td>' +
+    '<td><strong>'+(m.Produit||'')+'</strong></td>' +
+    '<td><span class="badge '+(m.Type==='ENTREE'?'badge-green':'badge-red')+'">'+m.Type+'</span></td>' +
+    '<td style="color:'+(m.Type==='ENTREE'?'var(--green2)':'var(--red2)')+';font-weight:700">'+(m.Type==='ENTREE'?'+':'−')+m.Quantite+'</td>' +
+    '<td class="td-m">'+(m.Motif||'—')+'</td>' +
+    '<td class="td-m">'+(m.Operateur||'—')+'</td>' +
+    '<td style="font-weight:700">'+(m.StockApres!==undefined?m.StockApres:'—')+'</td></tr>';
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+  catch(e){ return iso; }
+}
+function updateAlertBadge() {
+  var n = STATE.stocks.filter(function(s){ return +s.stock<=+s.seuilAlerte; }).length;
+  var b = document.getElementById('alert-badge');
+  b.style.display = n ? '' : 'none';
+  b.textContent = '⚠ '+n;
+}
+function closeModal(id)    { document.getElementById(id).classList.remove('open'); }
+function setLoading(v)     { document.getElementById('sync-spin').style.display = v?'':'none'; }
+function setError(msg)     { var el=document.getElementById('app-error'); el.textContent=msg; el.classList.toggle('show',!!msg); }
+function showToast(msg)    { var t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(function(){ t.classList.remove('show'); }, 3000); }
+
+/* ══════════════════════════════════════════════
+   EVENTS
+══════════════════════════════════════════════ */
+document.addEventListener('keydown', function(e) {
+  if (e.key==='Escape') document.querySelectorAll('.modal-overlay.open').forEach(function(m){ m.classList.remove('open'); });
+});
+document.querySelectorAll('.modal-overlay').forEach(function(m) {
+  m.addEventListener('click', function(e){ if(e.target===m) m.classList.remove('open'); });
+});
+window.addEventListener('resize', function() {
+  drawChart('chart-flux',  chartDataFromRecap(STATE.recap));
+  if (STATE.recap && STATE.recap.parJour) {
+    drawChart('chart-recap', Object.keys(STATE.recap.parJour).sort().slice(-14).map(function(j){
+      return {label:j.slice(5), entrees:STATE.recap.parJour[j].entrees, sorties:STATE.recap.parJour[j].sorties};
+    }));
+  }
+});
+window.addEventListener('DOMContentLoaded', function() {
+  var saved = localStorage.getItem('sf_url');
+  if (saved) document.getElementById('setup-url').value = saved;
+});
+</script>
+</body>
+</html>
