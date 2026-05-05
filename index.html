@@ -442,6 +442,38 @@ canvas{display:block;width:100%}
   #toast{bottom:22px}
 }
 
+/* ═══ BULK MOVEMENT MODAL ══════════════════════════════════ */
+.bulk-type-bar{display:flex;gap:8px;margin-bottom:16px}
+.bulk-row{
+  display:grid;grid-template-columns:1fr 90px auto;gap:8px;
+  align-items:center;margin-bottom:10px;
+  animation:fadeUp .15s var(--ease) both;
+}
+.bulk-row select,
+.bulk-row input[type=number]{padding:9px 10px;font-size:15px}
+.bulk-del{
+  width:34px;height:34px;border-radius:var(--r-sm);
+  background:var(--rose-50);border:1px solid var(--rose-200);
+  color:var(--rose-700);cursor:pointer;font-size:1rem;
+  display:flex;align-items:center;justify-content:center;
+  transition:background var(--t1),transform var(--t1);flex-shrink:0;
+}
+.bulk-del:active{background:var(--rose-100);transform:scale(.93)}
+.bulk-add-row{
+  display:flex;align-items:center;gap:8px;margin-top:4px;margin-bottom:16px;
+  padding:10px 12px;border:1.5px dashed var(--border-2);border-radius:var(--r);
+  cursor:pointer;transition:background var(--t1),border-color var(--t1);
+}
+.bulk-add-row:active{background:var(--surface-2)}
+.bulk-add-row span{font-size:.82rem;font-weight:600;color:var(--text-muted)}
+.bulk-summary{
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:var(--r);padding:10px 14px;margin-bottom:14px;
+  font-size:.78rem;color:var(--text-muted);line-height:1.8;
+}
+.bulk-summary b{color:var(--text-h)}
+.fab-btn.p{background:var(--indigo);color:#fff}
+
 /* ═══ ANIMATIONS ═══════════════════════════════════════════ */
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -556,9 +588,10 @@ canvas{display:block;width:100%}
       <div id="pg-mouvements" class="page">
         <div class="ph">
           <div class="pt">Mouvements</div>
-          <div style="display:flex;gap:6px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn btn-g btn-sm" onclick="openMvt('ENTREE')">＋ Entrée</button>
             <button class="btn btn-r btn-sm" onclick="openMvt('SORTIE')">− Sortie</button>
+            <button class="btn btn-p btn-sm" onclick="openBulk()">⊞ En masse</button>
           </div>
         </div>
         <div class="card">
@@ -630,6 +663,10 @@ canvas{display:block;width:100%}
       </button>
     </div>
     <div class="fab-item">
+      <span class="fab-label">Mouvements en masse</span>
+      <button class="fab-btn p" onclick="closeFab();openBulk()">⊞</button>
+    </div>
+    <div class="fab-item">
       <span class="fab-label">Nouvelle sortie</span>
       <button class="fab-btn r" onclick="closeFab();openMvt('SORTIE')">−</button>
     </div>
@@ -689,6 +726,49 @@ canvas{display:block;width:100%}
       <div class="mf">
         <button class="btn btn-p btn-full" onclick="saveProd()">Enregistrer</button>
         <button class="btn btn-o btn-full" onclick="closeOv('ov-prod')">Annuler</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL — Mouvements en masse -->
+<div id="ov-bulk" class="ov">
+  <div class="modal">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="mh">
+        <div class="mt">Mouvements en masse</div>
+        <button class="mx" onclick="closeOv('ov-bulk')">✕</button>
+      </div>
+      <!-- Type toggle -->
+      <div class="bulk-type-bar">
+        <button class="ttb e" id="bulk-tt-e" onclick="setBulkType('ENTREE')">▲ Entrées</button>
+        <button class="ttb"   id="bulk-tt-s" onclick="setBulkType('SORTIE')">▼ Sorties</button>
+      </div>
+      <!-- Header labels -->
+      <div style="display:grid;grid-template-columns:1fr 90px auto;gap:8px;margin-bottom:6px;padding:0 2px">
+        <span style="font-size:.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">Produit</span>
+        <span style="font-size:.68rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">Quantité</span>
+        <span style="width:34px"></span>
+      </div>
+      <!-- Rows container -->
+      <div id="bulk-rows"></div>
+      <!-- Add row button -->
+      <div class="bulk-add-row" onclick="addBulkRow()">
+        <span style="font-size:1.1rem;color:var(--indigo)">＋</span>
+        <span>Ajouter un produit</span>
+      </div>
+      <!-- Motif & Opérateur -->
+      <div class="row2">
+        <div class="f"><label>Motif</label><input type="text" id="bulk-motif" placeholder="Réappro, production…"></div>
+        <div class="f"><label>Opérateur</label><input type="text" id="bulk-op" placeholder="Votre nom"></div>
+      </div>
+      <!-- Summary -->
+      <div class="bulk-summary" id="bulk-summary">Ajoutez des lignes ci-dessus</div>
+      <div id="bulk-err" class="errbar"></div>
+      <div class="mf">
+        <button class="btn btn-p btn-full" id="bulk-save" onclick="saveBulk()">Enregistrer tout</button>
+        <button class="btn btn-o btn-full" onclick="closeOv('ov-bulk')">Annuler</button>
       </div>
     </div>
   </div>
@@ -1082,7 +1162,153 @@ function setPeriod(p) {
   setTimeout(function() { setLoading(false); }, 16000);
 }
 
-/* ═══ EXPORT WHATSAPP ══════════════════════════════════════ */
+/* ═══ BULK MOVEMENTS ═══════════════════════════════════════ */
+var BULK_TYPE = 'ENTREE';
+var BULK_ROW_ID = 0;
+
+function openBulk() {
+  BULK_TYPE = 'ENTREE';
+  setBulkType('ENTREE');
+  document.getElementById('bulk-motif').value = '';
+  document.getElementById('bulk-op').value    = localStorage.getItem(OP_KEY) || '';
+  document.getElementById('bulk-err').classList.remove('on');
+  document.getElementById('bulk-rows').innerHTML = '';
+  BULK_ROW_ID = 0;
+  addBulkRow(); addBulkRow(); // start with 2 rows
+  updateBulkSummary();
+  openOv('ov-bulk');
+  closeFab();
+}
+
+function setBulkType(t) {
+  BULK_TYPE = t;
+  document.getElementById('bulk-tt-e').className = 'ttb' + (t==='ENTREE' ? ' e' : '');
+  document.getElementById('bulk-tt-s').className = 'ttb' + (t==='SORTIE' ? ' s' : '');
+  var btn = document.getElementById('bulk-save');
+  btn.className = 'btn btn-full ' + (t==='ENTREE' ? 'btn-g' : 'btn-r');
+  btn.textContent = t==='ENTREE' ? 'Enregistrer les entrées' : 'Enregistrer les sorties';
+  updateBulkSummary();
+}
+
+function addBulkRow() {
+  var id  = ++BULK_ROW_ID;
+  var container = document.getElementById('bulk-rows');
+  var opts = '<option value="">— Produit —</option>' +
+    S.produits.map(function(p) {
+      return '<option value="' + p.id + '" data-nom="' + p.nom + '">' + p.nom + '</option>';
+    }).join('');
+  var div = document.createElement('div');
+  div.className = 'bulk-row';
+  div.id = 'bulk-row-' + id;
+  div.innerHTML =
+    '<select onchange="updateBulkSummary()">' + opts + '</select>' +
+    '<input type="number" min="1" value="1" inputmode="numeric" placeholder="Qté" onchange="updateBulkSummary()" oninput="updateBulkSummary()">' +
+    '<button class="bulk-del" onclick="removeBulkRow(' + id + ')" title="Supprimer">✕</button>';
+  container.appendChild(div);
+  updateBulkSummary();
+}
+
+function removeBulkRow(id) {
+  var el = document.getElementById('bulk-row-' + id);
+  if (el) el.remove();
+  updateBulkSummary();
+}
+
+function getBulkRows() {
+  return Array.from(document.querySelectorAll('#bulk-rows .bulk-row')).map(function(row) {
+    var sel = row.querySelector('select');
+    var inp = row.querySelector('input[type=number]');
+    var pid = sel.value;
+    var opt = sel.options[sel.selectedIndex];
+    return {
+      produit_id:  pid,
+      produit_nom: opt && pid ? opt.text : '',
+      quantite:    +inp.value || 0
+    };
+  }).filter(function(r) { return r.produit_id && r.quantite > 0; });
+}
+
+function updateBulkSummary() {
+  var rows = getBulkRows();
+  var el   = document.getElementById('bulk-summary');
+  if (!rows.length) {
+    el.innerHTML = 'Ajoutez des produits ci-dessus.';
+    return;
+  }
+  var icon = BULK_TYPE === 'ENTREE' ? '▲' : '▼';
+  var col  = BULK_TYPE === 'ENTREE' ? 'var(--emerald)' : 'var(--rose)';
+  var total = rows.reduce(function(s, r) { return s + r.quantite; }, 0);
+  el.innerHTML = rows.map(function(r) {
+    return '<span style="color:' + col + ';font-weight:600">' + icon + ' ' + r.quantite + '</span>  ' + r.produit_nom;
+  }).join('<br>') +
+  '<br><span style="color:var(--text-h);font-weight:700">' + rows.length + ' produit' + (rows.length > 1 ? 's' : '') +
+  ' · ' + total + ' unité' + (total > 1 ? 's' : '') + ' au total</span>';
+}
+
+function saveBulk() {
+  var rows  = getBulkRows();
+  var motif = document.getElementById('bulk-motif').value.trim();
+  var op    = document.getElementById('bulk-op').value.trim();
+  var err   = document.getElementById('bulk-err');
+  err.classList.remove('on');
+
+  if (!rows.length) {
+    err.textContent = '⚠ Ajoute au moins un produit avec une quantité.';
+    err.classList.add('on'); return;
+  }
+  var dups = {};
+  var hasDup = rows.some(function(r) {
+    if (dups[r.produit_id]) return true;
+    dups[r.produit_id] = true; return false;
+  });
+  if (hasDup) {
+    err.textContent = '⚠ Un produit apparaît plusieurs fois — fusionne les lignes.';
+    err.classList.add('on'); return;
+  }
+
+  if (op) localStorage.setItem(OP_KEY, op);
+
+  if (IS_DEMO) {
+    toast(BULK_TYPE === 'ENTREE'
+      ? rows.length + ' entrées enregistrées ✓'
+      : rows.length + ' sorties enregistrées ✓');
+    closeOv('ov-bulk'); return;
+  }
+
+  /* Envoyer les mouvements séquentiellement (pour éviter les conflits de stock) */
+  var btn = document.getElementById('bulk-save');
+  btn.disabled = true;
+
+  var chain = Promise.resolve();
+  rows.forEach(function(r) {
+    chain = chain.then(function() {
+      return api({
+        action:      'addMouvement',
+        produit_id:  r.produit_id,
+        produit_nom: r.produit_nom,
+        type:        BULK_TYPE,
+        quantite:    r.quantite,
+        motif:       motif,
+        operateur:   op || 'Anonyme'
+      });
+    });
+  });
+
+  chain.then(function() {
+    toast(BULK_TYPE === 'ENTREE'
+      ? rows.length + ' entrées enregistrées ✓'
+      : rows.length + ' sorties enregistrées ✓');
+    closeOv('ov-bulk');
+    doRefresh();
+  }).catch(function(e) {
+    err.textContent = '⚠ ' + e.message;
+    err.classList.add('on');
+  }).then(function() {
+    btn.disabled = false;
+  });
+}
+
+/* ═══ EXPORT WHATSAPP — avec résumé journalier ═════════════ */
 function exportWhatsApp() {
   var stocks = S.stocks;
   if (!stocks.length) { toast('Aucun stock à exporter'); return; }
@@ -1092,44 +1318,73 @@ function exportWhatsApp() {
     hour:'2-digit', minute:'2-digit'
   });
 
-  // En-tête
   var lines = [
     '📦 *ÉTAT DU STOCK — StockFlow*',
     '🕐 ' + now,
     '─────────────────────────'
   ];
 
-  // Grouper par catégorie
+  /* Stock par catégorie */
   var cats = {};
   stocks.forEach(function(s) {
     var cat = s.categorie || 'Autres';
     if (!cats[cat]) cats[cat] = [];
     cats[cat].push(s);
   });
-
   Object.keys(cats).sort().forEach(function(cat) {
     lines.push('\n*' + cat.toUpperCase() + '*');
     cats[cat].forEach(function(s) {
-      var status = '';
-      if (+s.stock === 0)             status = ' 🔴 RUPTURE';
-      else if (+s.stock <= +s.seuil)  status = ' 🟡 ALERTE';
-      else                            status = ' 🟢';
+      var status = +s.stock === 0 ? ' 🔴 RUPTURE' : +s.stock <= +s.seuil ? ' 🟡 ALERTE' : ' 🟢';
       lines.push(status + ' ' + s.nom + ' : *' + s.stock + ' ' + s.unite + '*');
     });
   });
 
-  // Résumé
+  /* ── Résumé journalier des mouvements ── */
+  var today = new Date();
+  var todayStr = today.getFullYear() + '-' +
+    String(today.getMonth()+1).padStart(2,'0') + '-' +
+    String(today.getDate()).padStart(2,'0');
+
+  var mvtAujourdhui = S.mouvements.filter(function(m) {
+    return m.horodatage && m.horodatage.slice(0,10) === todayStr;
+  });
+
+  if (mvtAujourdhui.length) {
+    var totalE = 0, totalS = 0;
+    var parProduit = {};
+    mvtAujourdhui.forEach(function(m) {
+      var qty = +m.quantite || 0;
+      if (m.type === 'ENTREE') totalE += qty;
+      else                     totalS += qty;
+      var nom = m.produit_nom;
+      if (!parProduit[nom]) parProduit[nom] = {e:0, s:0};
+      if (m.type === 'ENTREE') parProduit[nom].e += qty;
+      else                     parProduit[nom].s += qty;
+    });
+
+    lines.push('\n─────────────────────────');
+    lines.push('📊 *ACTIVITÉ DU JOUR*');
+    lines.push('▲ Entrées : *' + totalE + ' unités*');
+    lines.push('▼ Sorties : *' + totalS + ' unités*');
+
+    var detail = Object.keys(parProduit).map(function(nom) {
+      var d = parProduit[nom];
+      var parts = [];
+      if (d.e) parts.push('＋' + d.e);
+      if (d.s) parts.push('−' + d.s);
+      return nom + ' (' + parts.join(' / ') + ')';
+    });
+    if (detail.length) lines.push('_' + detail.join(', ') + '_');
+  }
+
+  /* Résumé alertes */
   var ruptures = stocks.filter(function(s) { return +s.stock === 0; });
   var alertes  = stocks.filter(function(s) { return +s.stock > 0 && +s.stock <= +s.seuil; });
   lines.push('\n─────────────────────────');
-  lines.push('📊 *' + stocks.length + '* produits · *' + alertes.length + '* alertes · *' + ruptures.length + '* ruptures');
+  lines.push('📋 *' + stocks.length + '* produits · *' + alertes.length + '* alertes · *' + ruptures.length + '* ruptures');
   lines.push('_Exporté depuis StockFlow_');
 
-  var msg = lines.join('\n');
-
-  // Ouvrir WhatsApp — wa.me sans numéro = choix du contact
-  var url = 'https://wa.me/?text=' + encodeURIComponent(msg);
-  window.open(url, '_blank');
+  window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank');
 }
 
 function renderAlertBadge() {
@@ -1311,6 +1566,7 @@ function goTab(id, btn) {
 /* ═══ OVERLAYS ═════════════════════════════════════════════ */
 function openOv(id)  { document.getElementById(id).classList.add('on'); }
 function closeOv(id) { document.getElementById(id).classList.remove('on'); }
+/* ov-bulk also needs overlay-click-to-close — handled by querySelectorAll below */
 document.querySelectorAll('.ov').forEach(function(ov) {
   ov.addEventListener('click', function(e) { if(e.target===ov) ov.classList.remove('on'); });
 });
