@@ -442,6 +442,34 @@ canvas{display:block;width:100%}
   #toast{bottom:22px}
 }
 
+/* ═══ OFFLINE QUEUE UI ═════════════════════════════════════ */
+#sync-banner{
+  display:none;
+  background:var(--amber-50);border:1px solid var(--amber-200);
+  border-radius:var(--r-md);padding:11px 14px;margin-bottom:12px;
+  align-items:center;gap:10px;
+}
+#sync-banner.on{display:flex}
+.sync-banner-text{flex:1;font-size:.8rem;font-weight:500;color:var(--amber-700);line-height:1.4}
+.sync-banner-text b{font-weight:700}
+#sync-now-btn{flex-shrink:0}
+/* Pending count badge on nav topbar */
+#n-pending{
+  background:var(--amber-100);color:var(--amber-700);
+  border:1px solid var(--amber-200);
+  font-size:.67rem;font-weight:700;
+  padding:2px 7px;border-radius:99px;
+  display:none;
+}
+/* Syncing spinner next to pending badge */
+.sync-spin{
+  display:inline-block;width:13px;height:13px;
+  border:2px solid var(--amber-200);
+  border-top-color:var(--amber-700);
+  border-radius:50%;animation:rot .65s linear infinite;
+  vertical-align:middle;
+}
+
 /* ═══ BULK MOVEMENT MODAL ══════════════════════════════════ */
 .bulk-type-bar{display:flex;gap:8px;margin-bottom:16px}
 .bulk-row{
@@ -534,8 +562,9 @@ canvas{display:block;width:100%}
       <span class="topbar-title">StockFlow</span>
     </div>
     <div class="topbar-right">
-      <span id="n-alert" class="badge bd-y" style="display:none"></span>
-      <span id="n-demo"  class="badge bd-n" style="display:none">DÉMO</span>
+      <span id="n-alert"   class="badge bd-y" style="display:none"></span>
+      <span id="n-pending" ></span>
+      <span id="n-demo"    class="badge bd-n" style="display:none">DÉMO</span>
       <span id="n-spin"  style="display:none"><span class="spin"></span></span>
       <button class="btn btn-o btn-sm btn-ic" onclick="doRefresh()" title="Actualiser">↻</button>
       <button class="btn btn-o btn-sm btn-ic" onclick="goSetup()" title="Paramètres">⚙</button>
@@ -548,6 +577,17 @@ canvas{display:block;width:100%}
     </div>
     <div class="wrap">
       <div id="app-err" class="errbar"></div>
+
+      <!-- OFFLINE SYNC BANNER -->
+      <div id="sync-banner">
+        <div class="sync-banner-text">
+          📶 <b id="pending-count">0</b> mouvement(s) en attente de synchronisation
+          <br><span style="font-size:.74rem;opacity:.8">Ils seront envoyés dès le retour en ligne</span>
+        </div>
+        <button class="btn btn-sm" id="sync-now-btn"
+                style="background:var(--amber);color:#fff;border-color:var(--amber)"
+                onclick="syncQueue()">Sync</button>
+      </div>
       <div id="install-banner">
         <div class="ib-text">📲 Installer StockFlow pour un accès rapide</div>
         <button class="btn btn-p btn-sm" onclick="doPwaInstall()">Installer</button>
@@ -780,10 +820,197 @@ canvas{display:block;width:100%}
 /* ═══ CONSTANTS — déclarés EN PREMIER pour éviter les erreurs de hoisting ═ */
 var URL_KEY = 'sf_url_v1';
 var OP_KEY  = 'sf_op';
+var Q_KEY   = 'sf_queue_v1';   /* localStorage key for pending queue */
+var CACHE_KEY = 'sf_cache_v1'; /* localStorage key for last-known data */
 var API_URL = '';
 var IS_DEMO = false;
 var JSONP_N = 0;
 var S = { stocks:[], produits:[], mouvements:[], recap:null, periode:'jour', mvtType:'ENTREE' };
+
+/* ═══════════════════════════════════════════════════════════
+   OFFLINE QUEUE ENGINE (Path A)
+   ─────────────────────────────────────────────────────────
+   Strategy:
+   • Every write (addMouvement) goes through apiOrQueue()
+   • If online  → send immediately to Sheets, on success remove from queue
+   • If offline → push to localStorage queue, apply optimistically to S
+   • On reconnect → syncQueue() replays pending ops sequentially
+   • Last-known state is cached in localStorage for offline reads
+═══════════════════════════════════════════════════════════ */
+
+/* ── Queue helpers ────────────────────────────────────────── */
+function qLoad() {
+  try { return JSON.parse(localStorage.getItem(Q_KEY) || '[]'); } catch(e) { return []; }
+}
+function qSave(queue) {
+  try { localStorage.setItem(Q_KEY, JSON.stringify(queue)); } catch(e) {}
+}
+function qAdd(op) {
+  var q = qLoad();
+  op._id = 'q' + Date.now() + Math.random().toString(36).slice(2,6);
+  op._ts  = new Date().toISOString();
+  q.push(op);
+  qSave(q);
+  updateQueueBadge();
+}
+function qRemove(id) {
+  var q = qLoad().filter(function(op) { return op._id !== id; });
+  qSave(q);
+  updateQueueBadge();
+}
+
+/* ── Cache helpers (persist last-known data) ─────────────── */
+function cacheSave() {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      stocks:     S.stocks,
+      produits:   S.produits,
+      mouvements: S.mouvements.slice(0, 100), /* cap at 100 to save space */
+      recap:      S.recap,
+      savedAt:    new Date().toISOString()
+    }));
+  } catch(e) {}
+}
+function cacheLoad() {
+  try {
+    var c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    if (!c) return false;
+    S.stocks     = c.stocks     || [];
+    S.produits   = c.produits   || [];
+    S.mouvements = c.mouvements || [];
+    S.recap      = c.recap      || null;
+    return c.savedAt || true;
+  } catch(e) { return false; }
+}
+
+/* ── UI badge ─────────────────────────────────────────────── */
+function updateQueueBadge() {
+  var q  = qLoad();
+  var n  = q.length;
+  var pb = document.getElementById('n-pending');
+  var sb = document.getElementById('sync-banner');
+  var pc = document.getElementById('pending-count');
+
+  if (n > 0) {
+    pb.style.display = '';
+    pb.textContent   = '⏳ ' + n;
+    if (pc) pc.textContent = n;
+    if (sb) sb.classList.add('on');
+  } else {
+    pb.style.display = 'none';
+    if (sb) sb.classList.remove('on');
+  }
+}
+
+/* ── Optimistic stock update (no network) ───────────────────
+   When offline, we apply the movement to S.stocks immediately
+   so the UI reflects the change. On sync, Sheets recalculates
+   the real stock_apres.
+─────────────────────────────────────────────────────────── */
+function applyOptimistic(op) {
+  /* Update S.stocks */
+  var stock = S.stocks.find(function(s) { return s.id === op.produit_id; });
+  var avant = stock ? +stock.stock : 0;
+  var apres = op.type === 'ENTREE' ? avant + op.quantite : Math.max(0, avant - op.quantite);
+  if (stock) stock.stock = apres;
+
+  /* Prepend to S.mouvements so it appears immediately */
+  S.mouvements.unshift({
+    id:          op._id,
+    horodatage:  op._ts,
+    produit_id:  op.produit_id,
+    produit_nom: op.produit_nom,
+    type:        op.type,
+    quantite:    op.quantite,
+    motif:       op.motif || '',
+    operateur:   op.operateur || '',
+    stock_avant: avant,
+    stock_apres: apres,
+    _pending:    true  /* flag for visual indicator */
+  });
+
+  cacheSave();
+  renderAll();
+}
+
+/* ── Core: write with automatic offline fallback ──────────── */
+function apiOrQueue(mvtParams) {
+  /* mvtParams must include: produit_id, produit_nom, type, quantite, motif, operateur */
+  var op = {
+    action:      'addMouvement',
+    produit_id:  mvtParams.produit_id,
+    produit_nom: mvtParams.produit_nom,
+    type:        mvtParams.type,
+    quantite:    +mvtParams.quantite,
+    motif:       mvtParams.motif    || '',
+    operateur:   mvtParams.operateur|| 'Anonyme'
+  };
+
+  if (!navigator.onLine) {
+    /* OFFLINE: queue + optimistic update */
+    qAdd(op);
+    applyOptimistic(op);
+    return Promise.resolve({ok:true, _queued:true});
+  }
+
+  /* ONLINE: try to send, fall back to queue on failure */
+  return api(op).then(function(r) {
+    return r;
+  }).catch(function() {
+    /* Network failed even though navigator.onLine was true (flaky connection) */
+    qAdd(op);
+    applyOptimistic(op);
+    return {ok:true, _queued:true};
+  });
+}
+
+/* ── Sync: replay all queued ops when back online ─────────── */
+var IS_SYNCING = false;
+function syncQueue() {
+  if (IS_DEMO || IS_SYNCING || !navigator.onLine) return;
+  var q = qLoad();
+  if (!q.length) return;
+
+  IS_SYNCING = true;
+  var btn = document.getElementById('sync-now-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="sync-spin"></span>'; }
+
+  /* Replay sequentially to preserve stock_avant/après integrity */
+  var chain = Promise.resolve();
+  var sent  = 0;
+
+  q.forEach(function(op) {
+    chain = chain.then(function() {
+      return api({
+        action:      op.action,
+        produit_id:  op.produit_id,
+        produit_nom: op.produit_nom,
+        type:        op.type,
+        quantite:    op.quantite,
+        motif:       op.motif,
+        operateur:   op.operateur
+      }).then(function() {
+        qRemove(op._id); sent++;
+      }).catch(function() {
+        /* If one op fails, stop the chain to avoid wrong ordering */
+        return Promise.reject(new Error('sync_stop'));
+      });
+    });
+  });
+
+  chain.then(function() {
+    IS_SYNCING = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Sync'; }
+    if (sent > 0) {
+      toast(sent + ' mouvement' + (sent>1?'s':'') + ' synchronisé' + (sent>1?'s':'') + ' ✓');
+      doRefresh();
+    }
+  }).catch(function(e) {
+    IS_SYNCING = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Réessayer'; }
+    if (e.message !== 'sync_stop') setErr('Sync échouée: ' + e.message);
+  });
+}
 
 /* ═══ SERVICE WORKER ═══════════════════════════════════════ */
 if ('serviceWorker' in navigator) {
@@ -813,14 +1040,16 @@ window.addEventListener('appinstalled', function() {
 
 /* ═══ ONLINE/OFFLINE ═══════════════════════════════════════ */
 function updateOnline() {
-  document.getElementById('offline-bar').classList.toggle('on', !navigator.onLine);
+  var offline = !navigator.onLine;
+  document.getElementById('offline-bar').classList.toggle('on', offline);
+  /* Auto-sync when connectivity is restored */
+  if (!offline) syncQueue();
 }
 window.addEventListener('online',  updateOnline);
 window.addEventListener('offline', updateOnline);
 
-/* ═══ SPLASH + INIT — FIX: runs after URL_KEY is declared ═ */
+/* ═══ SPLASH + INIT ════════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded', function() {
-  /* Restore saved URL */
   var saved = localStorage.getItem(URL_KEY);
   if (saved) document.getElementById('setup-url').value = saved;
 
@@ -830,14 +1059,27 @@ window.addEventListener('DOMContentLoaded', function() {
     sp.classList.add('hide');
     setTimeout(function() {
       sp.style.display = 'none';
-      /* FIX: show setup screen only after splash is gone */
       if (!document.getElementById('app').classList.contains('on')) {
-        document.getElementById('setup').classList.add('on');
+        /* Try to restore from cache even before user connects */
+        var cacheDate = cacheLoad();
+        if (cacheDate && saved) {
+          /* We have a URL and cached data — skip setup, launch immediately */
+          API_URL = saved; IS_DEMO = false;
+          document.getElementById('setup').classList.remove('on');
+          document.getElementById('app').classList.add('on');
+          renderAll();
+          updateQueueBadge();
+          /* Then try a real refresh in background */
+          doRefresh();
+        } else {
+          document.getElementById('setup').classList.add('on');
+        }
       }
     }, 320);
   }, 700);
 
   updateOnline();
+  updateQueueBadge();
   initPullToRefresh();
   initSwipeToClose();
 });
@@ -938,6 +1180,13 @@ function api(params) {
 /* ═══ REFRESH ══════════════════════════════════════════════ */
 function doRefresh() {
   if (IS_DEMO) { renderAll(); return; }
+  if (!navigator.onLine) {
+    /* Offline: show cached data, update badge */
+    cacheLoad();
+    updateQueueBadge();
+    renderAll();
+    return;
+  }
   setLoading(true); setErr('');
   Promise.allSettled([
     api({action:'getStocks'}),
@@ -951,6 +1200,9 @@ function doRefresh() {
     if (rs[3].status==='fulfilled' && rs[3].value) S.recap      = rs[3].value.data || null;
     var fail = rs.find(function(r) { return r.status === 'rejected'; });
     if (fail) setErr(fail.reason.message);
+    /* Persist fresh data for offline use */
+    cacheSave();
+    updateQueueBadge();
     renderAll();
   }).catch(function(e) { setErr(e.message); });
   setTimeout(function() { setLoading(false); }, 16000);
@@ -1086,9 +1338,12 @@ function renderMouvements() {
   var el = document.getElementById('mvt-body');
   el.innerHTML = S.mouvements.length ? S.mouvements.map(function(m) {
     var isE = m.type === 'ENTREE';
-    return '<tr>' +
+    var pendingBadge = m._pending
+      ? '<span style="font-size:.6rem;background:var(--amber-100);color:var(--amber-700);border:1px solid var(--amber-200);border-radius:4px;padding:1px 5px;margin-left:4px">⏳</span>'
+      : '';
+    return '<tr' + (m._pending ? ' style="opacity:.75"' : '') + '>' +
       '<td class="tm">' + fmtDShort(m.horodatage) + '</td>' +
-      '<td style="font-weight:600;color:var(--text-h)">' + m.produit_nom + '</td>' +
+      '<td style="font-weight:600;color:var(--text-h)">' + m.produit_nom + pendingBadge + '</td>' +
       '<td><span class="badge ' + (isE?'bd-g':'bd-r') + '" style="padding:1px 6px;font-size:.62rem">' + m.type + '</span></td>' +
       '<td style="color:' + (isE?'var(--emerald)':'var(--rose)') + ';font-weight:600;font-family:var(--mono)">' + (isE?'＋':'−') + m.quantite + '</td>' +
       '<td class="tm" style="font-family:var(--mono)">' + (m.stock_avant !== undefined ? m.stock_avant : '—') + '</td>' +
@@ -1275,31 +1530,37 @@ function saveBulk() {
     closeOv('ov-bulk'); return;
   }
 
-  /* Envoyer les mouvements séquentiellement (pour éviter les conflits de stock) */
+  /* Envoyer via apiOrQueue (gère offline automatiquement) */
   var btn = document.getElementById('bulk-save');
   btn.disabled = true;
 
   var chain = Promise.resolve();
+  var allQueued = true;
   rows.forEach(function(r) {
     chain = chain.then(function() {
-      return api({
-        action:      'addMouvement',
+      return apiOrQueue({
         produit_id:  r.produit_id,
         produit_nom: r.produit_nom,
         type:        BULK_TYPE,
         quantite:    r.quantite,
         motif:       motif,
         operateur:   op || 'Anonyme'
+      }).then(function(res) {
+        if (res && !res._queued) allQueued = false;
       });
     });
   });
 
   chain.then(function() {
-    toast(BULK_TYPE === 'ENTREE'
-      ? rows.length + ' entrées enregistrées ✓'
-      : rows.length + ' sorties enregistrées ✓');
+    if (allQueued && !navigator.onLine) {
+      toast(rows.length + ' mouvement' + (rows.length>1?'s':'') + ' sauvegardé' + (rows.length>1?'s':'') + ' localement 📱');
+    } else {
+      toast(BULK_TYPE === 'ENTREE'
+        ? rows.length + ' entrées enregistrées ✓'
+        : rows.length + ' sorties enregistrées ✓');
+      doRefresh();
+    }
     closeOv('ov-bulk');
-    doRefresh();
   }).catch(function(e) {
     err.textContent = '⚠ ' + e.message;
     err.classList.add('on');
@@ -1427,9 +1688,23 @@ function saveMvt() {
   if (op) localStorage.setItem(OP_KEY, op);
   var prod = S.produits.find(function(p) { return p.id === pid; });
   if (IS_DEMO) { toast(S.mvtType==='ENTREE'?'Entrée enregistrée ✓':'Sortie enregistrée ✓'); closeOv('ov-mvt'); return; }
-  api({action:'addMouvement', produit_id:pid, produit_nom:prod?prod.nom:'?', type:S.mvtType, quantite:qty, motif:motif, operateur:op})
-    .then(function(r) { if(r) { toast(S.mvtType==='ENTREE'?'Entrée enregistrée ✓':'Sortie enregistrée ✓'); closeOv('ov-mvt'); doRefresh(); } })
-    .catch(function(e) { err.textContent='⚠ '+e.message; err.classList.add('on'); });
+
+  apiOrQueue({
+    produit_id:  pid,
+    produit_nom: prod ? prod.nom : '?',
+    type:        S.mvtType,
+    quantite:    qty,
+    motif:       motif,
+    operateur:   op
+  }).then(function(r) {
+    if (r && r._queued) {
+      toast('Hors ligne — mouvement sauvegardé localement 📱');
+    } else {
+      toast(S.mvtType==='ENTREE' ? 'Entrée enregistrée ✓' : 'Sortie enregistrée ✓');
+      doRefresh();
+    }
+    closeOv('ov-mvt');
+  }).catch(function(e) { err.textContent='⚠ '+e.message; err.classList.add('on'); });
 }
 
 function openProd(d) {
