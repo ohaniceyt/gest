@@ -779,7 +779,10 @@ canvas{display:block;width:100%}
       <div id="pg-produits" class="page">
         <div class="ph">
           <div class="pt">Produits</div>
-          <button class="btn btn-p btn-sm" onclick="openProd()">＋ Nouveau</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-o btn-sm" onclick="printProduits()">🖨 Imprimer</button>
+            <button class="btn btn-p btn-sm" onclick="openProd()">＋ Nouveau</button>
+          </div>
         </div>
         <div class="card">
           <div class="tw"><table>
@@ -1956,6 +1959,62 @@ function saveBulk() {
   }).then(function() {
     btn.disabled = false;
   });
+}
+
+/* ═══ PRINT PRODUCTS PAGE ══════════════════════════════════ */
+function printProduits() {
+  var produits = S.produits;
+  if (!produits.length) { toast('Aucun produit à imprimer'); return; }
+
+  var now      = new Date().toLocaleString('fr-FR');
+  var ruptures = 0, alertes = 0, ok = 0;
+
+  var rows = produits.map(function(p) {
+    var s     = S.stocks.find(function(x) { return x.id === p.id; });
+    var stk   = s ? +s.stock : 0;
+    var seuil = +p.seuil || 0;
+    var isR   = stk === 0;
+    var isA   = !isR && stk <= seuil;
+    if (isR) ruptures++; else if (isA) alertes++; else ok++;
+    var sc = isR ? '#e11d48' : isA ? '#d97706' : '#059669';
+    var sl = isR ? 'RUPTURE' : isA ? 'ALERTE'  : 'OK';
+    var sb = isR ? '#fff1f2' : isA ? '#fffbeb'  : '#ecfdf5';
+    var sd = isR ? '#fecdd3' : isA ? '#fde68a'  : '#a7f3d0';
+    return '<tr>' +
+      '<td style="font-weight:600;color:#1e293b">' + p.nom + '</td>' +
+      '<td>' + (p.categorie || '—') + '</td>' +
+      '<td>' + (p.unite || '—') + '</td>' +
+      '<td class="num" style="font-weight:700;color:' + sc + '">' + stk + '</td>' +
+      '<td class="num">' + seuil + '</td>' +
+      '<td style="text-align:center"><span style="font-size:.65rem;font-weight:700;color:' + sc + ';background:' + sb + ';border:1px solid ' + sd + ';border-radius:4px;padding:2px 7px">' + sl + '</span></td>' +
+      '<td style="font-size:.75rem;color:#64748b">' + (p.description || '—') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  var cats = {};
+  produits.forEach(function(p) { var c = p.categorie||'Autres'; cats[c]=(cats[c]||0)+1; });
+  var catBadges = Object.keys(cats).sort().map(function(c) {
+    return '<span style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:2px 8px;font-size:.72rem;font-weight:600;color:#334155;margin-right:6px">' + c + ' (' + cats[c] + ')</span>';
+  }).join('');
+
+  document.getElementById('print-area').innerHTML =
+    '<div class="pr-header">' +
+      '<div><div class="pr-logo">📦 StockFlow</div><div style="font-size:.75rem;color:#64748b;margin-top:2px">Gestion de stock</div></div>' +
+      '<div class="pr-meta"><div style="font-weight:700;font-size:.9rem;color:#1e293b">Fiche produits</div><div>' + now + '</div></div>' +
+    '</div>' +
+    '<div class="pr-kpis">' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">Total</div><div class="pr-kpi-val">'          + produits.length + '</div></div>' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">OK</div><div class="pr-kpi-val green">'        + ok              + '</div></div>' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">Alertes</div><div class="pr-kpi-val" style="color:#d97706">' + alertes + '</div></div>' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">Ruptures</div><div class="pr-kpi-val red">'    + ruptures        + '</div></div>' +
+    '</div>' +
+    '<div style="margin-bottom:14px">' + catBadges + '</div>' +
+    '<table class="pr-table"><thead><tr>' +
+      '<th>Nom</th><th>Catégorie</th><th>Unité</th><th>Stock actuel</th><th>Seuil alerte</th><th>Statut</th><th>Description</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="pr-footer">Fiche produits — StockFlow · ' + now + ' · ' + produits.length + ' produit(s)</div>';
+
+  doPrint();
 }
 
 /* ═══ EXPORT WHATSAPP — avec résumé journalier ═════════════ */
