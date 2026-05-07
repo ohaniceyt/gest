@@ -791,9 +791,6 @@ canvas{display:block;width:100%}
 
     </div><!-- /wrap -->
 
-    <!-- PRINT AREA — hidden on screen, visible only during print -->
-    <div id="print-area"></div>
-
   </div><!-- /content -->
   <nav class="tabnav">
     <button class="tab on" onclick="goTab('dashboard',this)">
@@ -1558,6 +1555,17 @@ function renderRecap() {
   }
 }
 
+/* ── Reliable print trigger — waits for DOM paint ────────── */
+function doPrint() {
+  /* requestAnimationFrame ensures the browser has painted the content
+     before window.print() is called, preventing blank pages */
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      window.print();
+    });
+  });
+}
+
 /* ═══ PRINT RECAP ══════════════════════════════════════════ */
 function printRecap() {
   var r = S.recap;
@@ -1633,7 +1641,7 @@ function printRecap() {
 
     '<div class="pr-footer">Généré par StockFlow · ' + now + ' · ' + (r.nb||0) + ' mouvement(s)</div>';
 
-  setTimeout(function() { window.print(); }, 100);
+  doPrint();
 }
 
 /* ═══ PRINT STOCK STATE ════════════════════════════════════ */
@@ -1721,7 +1729,7 @@ function printStock() {
 
     '<div class="pr-footer">État du stock imprimé depuis StockFlow · ' + now + ' · ' + stocks.length + ' produit(s)</div>';
 
-  setTimeout(function() { window.print(); }, 100);
+  doPrint();
 }
 
 function setPeriod(p) {
@@ -2245,5 +2253,8 @@ window.addEventListener('resize', function() {
   drawChart('ch-recap', chartData(S.recap));
 });
 </script>
+<!-- PRINT AREA — must be a direct child of body for @media print to work -->
+<div id="print-area"></div>
+
 </body>
 </html>
