@@ -442,6 +442,98 @@ canvas{display:block;width:100%}
   #toast{bottom:22px}
 }
 
+/* ═══ RECAP DATE PICKER & PRINT ════════════════════════════ */
+.recap-controls{
+  display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  margin-bottom:14px;padding:12px 14px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-md);box-shadow:var(--shadow-xs);
+}
+.recap-controls label{
+  font-size:.7rem;font-weight:600;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:.04em;
+  white-space:nowrap;
+}
+.date-range{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.date-range input[type=date]{
+  width:auto;font-size:14px;padding:7px 10px;border-radius:var(--r-sm);
+  min-width:130px;
+}
+.date-sep{font-size:.78rem;color:var(--text-muted);font-weight:500}
+.period-bar{display:flex;gap:4px;flex-shrink:0}
+
+/* Print-only block */
+#print-area{display:none}
+
+/* ═══ PRINT STYLES ═════════════════════════════════════════ */
+@media print{
+  /* Hide everything except print area */
+  body > *:not(#print-area){display:none!important}
+  #print-area{
+    display:block!important;
+    font-family:'Inter',sans-serif;
+    color:#111;background:#fff;
+    padding:24px;font-size:12px;line-height:1.6;
+  }
+  .pr-header{
+    display:flex;justify-content:space-between;align-items:flex-start;
+    border-bottom:2px solid #1e293b;padding-bottom:12px;margin-bottom:20px;
+  }
+  .pr-logo{font-size:1.2rem;font-weight:700;color:#1e293b}
+  .pr-meta{text-align:right;font-size:.75rem;color:#64748b}
+  .pr-period{
+    font-size:.85rem;font-weight:600;background:#f1f5f9;
+    padding:6px 14px;border-radius:6px;margin-bottom:18px;color:#334155;
+  }
+  .pr-kpis{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;
+  }
+  .pr-kpi{
+    background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
+    padding:10px 14px;text-align:center;
+  }
+  .pr-kpi-lbl{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#64748b;margin-bottom:4px}
+  .pr-kpi-val{font-size:1.5rem;font-weight:700;color:#1e293b}
+  .pr-kpi-val.green{color:#059669}
+  .pr-kpi-val.red  {color:#e11d48}
+  .pr-section-title{
+    font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+    color:#64748b;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #e2e8f0;
+  }
+  .pr-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:18px}
+  .pr-table th{
+    background:#f1f5f9;padding:6px 10px;text-align:left;
+    font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;
+    border-bottom:1px solid #e2e8f0;
+  }
+  .pr-table td{padding:6px 10px;border-bottom:1px solid #f1f5f9;color:#334155}
+  .pr-table tr:last-child td{border-bottom:none}
+  .pr-table .num{font-family:monospace;font-weight:600}
+  .pr-table .green{color:#059669}.pr-table .red{color:#e11d48}
+  .pr-footer{font-size:.7rem;color:#94a3b8;text-align:center;margin-top:24px;padding-top:10px;border-top:1px solid #e2e8f0}
+  /* Stock state specific */
+  .pr-stock-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+  .pr-stock-card{
+    border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;
+    border-top:3px solid #e2e8f0;
+  }
+  .pr-stock-card.ok    {border-top-color:#059669}
+  .pr-stock-card.alerte{border-top-color:#d97706}
+  .pr-stock-card.rupture{border-top-color:#e11d48}
+  .pr-stock-nom{font-weight:700;font-size:.85rem;color:#1e293b;margin-bottom:2px}
+  .pr-stock-cat{font-size:.7rem;color:#94a3b8;margin-bottom:8px}
+  .pr-stock-qty{font-size:1.4rem;font-weight:700;line-height:1}
+  .pr-stock-qty.ok    {color:#059669}
+  .pr-stock-qty.alerte{color:#d97706}
+  .pr-stock-qty.rupture{color:#e11d48}
+  .pr-stock-unit{font-size:.75rem;color:#64748b;margin-left:4px}
+  .pr-stock-seuil{font-size:.7rem;color:#94a3b8;margin-top:4px}
+  .pr-legend{display:flex;gap:14px;font-size:.72rem;margin-bottom:14px}
+  .pr-legend-item{display:flex;align-items:center;gap:5px}
+  .pr-dot{width:10px;height:10px;border-radius:50%}
+  @page{margin:1.5cm;size:A4 portrait}
+}
+
 /* ═══ OFFLINE QUEUE UI ═════════════════════════════════════ */
 #sync-banner{
   display:none;
@@ -613,8 +705,9 @@ canvas{display:block;width:100%}
       <div id="pg-stock" class="page">
         <div class="ph">
           <div class="pt">Stock temps réel</div>
-          <div style="display:flex;gap:6px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn btn-o btn-sm" onclick="doRefresh()">↻</button>
+            <button class="btn btn-o btn-sm" onclick="printStock()">🖨 Imprimer</button>
             <button class="btn btn-wa btn-sm" onclick="exportWhatsApp()">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.553 4.103 1.522 5.833L0 24l6.335-1.502A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.368l-.36-.214-3.732.885.916-3.636-.235-.374A9.818 9.818 0 0112 2.182c5.424 0 9.818 4.394 9.818 9.818 0 5.425-4.394 9.818-9.818 9.818z"/></svg>
               WhatsApp
@@ -646,15 +739,40 @@ canvas{display:block;width:100%}
       <div id="pg-recap" class="page">
         <div class="ph">
           <div class="pt">Récapitulatif</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-o btn-sm" onclick="printRecap()" title="Imprimer">🖨 Imprimer</button>
+          </div>
+        </div>
+
+        <!-- Controls: période + date personnalisée -->
+        <div class="recap-controls">
           <div class="period-bar">
             <button class="btn btn-p btn-sm" id="p-jour"    onclick="setPeriod('jour')">Auj.</button>
             <button class="btn btn-o btn-sm" id="p-semaine" onclick="setPeriod('semaine')">Sem.</button>
             <button class="btn btn-o btn-sm" id="p-mois"    onclick="setPeriod('mois')">Mois</button>
+            <button class="btn btn-o btn-sm" id="p-custom"  onclick="setPeriod('custom')">Dates</button>
+          </div>
+          <div class="date-range" id="custom-date-row" style="display:none">
+            <label>Du</label>
+            <input type="date" id="date-from" onchange="applyCustomDate()">
+            <span class="date-sep">au</span>
+            <input type="date" id="date-to" onchange="applyCustomDate()">
           </div>
         </div>
+
         <div class="sg" id="r-stats"></div>
         <div class="card"><div class="card-t">Flux par jour</div><canvas id="ch-recap" height="160"></canvas></div>
         <div class="card"><div class="card-t">Par produit</div><div id="r-byp"></div></div>
+        <div class="card" id="r-mvt-card">
+          <div class="card-t">Détail des mouvements</div>
+          <div class="tw"><table>
+            <thead><tr>
+              <th>Date</th><th>Produit</th><th>Type</th>
+              <th>Qté</th><th>Motif</th><th>Opérateur</th>
+            </tr></thead>
+            <tbody id="r-mvt-body"></tbody>
+          </table></div>
+        </div>
       </div>
 
       <!-- PRODUITS -->
@@ -671,10 +789,12 @@ canvas{display:block;width:100%}
         </div>
       </div>
 
-    </div>
-  </div>
+    </div><!-- /wrap -->
 
-  <!-- BOTTOM TAB BAR -->
+    <!-- PRINT AREA — hidden on screen, visible only during print -->
+    <div id="print-area"></div>
+
+  </div><!-- /content -->
   <nav class="tabnav">
     <button class="tab on" onclick="goTab('dashboard',this)">
       <span class="tab-icon">◈</span><span class="tab-lbl">Dashboard</span>
@@ -1181,8 +1301,23 @@ function api(params) {
 function doRefresh() {
   if (IS_DEMO) { renderAll(); return; }
   if (!navigator.onLine) {
-    /* Offline: show cached data, update badge */
+    /* Offline: show cached data, compute recap locally */
     cacheLoad();
+    if (S.mouvements.length) {
+      var today = new Date().toISOString().slice(0,10);
+      var maps  = {jour:today+'T00:00:00', semaine:null, mois:null};
+      // Compute debut for semaine/mois
+      var now2 = new Date();
+      if (S.periode === 'semaine') {
+        var wd = now2.getDay(); var d2 = new Date(now2);
+        d2.setDate(now2.getDate() - (wd===0?6:wd-1)); d2.setHours(0,0,0,0);
+        maps.semaine = d2.toISOString();
+      } else if (S.periode === 'mois') {
+        maps.mois = new Date(now2.getFullYear(), now2.getMonth(), 1).toISOString();
+      }
+      var debut = maps[S.periode] || maps.jour;
+      S.recap = computeRecapFromCache(debut, null);
+    }
     updateQueueBadge();
     renderAll();
     return;
@@ -1373,8 +1508,9 @@ function renderProduits() {
   }).join('');
 }
 
+/* ── renderRecap — now also fills movement detail table ─── */
 function renderRecap() {
-  var r = S.recap, el = document.getElementById('r-stats');
+  var r  = S.recap, el = document.getElementById('r-stats');
   if (!r) { el.innerHTML = '<div class="empty" style="grid-column:1/-1">Aucune donnée</div>'; return; }
   var bal = (r.entrees||0) - (r.sorties||0);
   el.innerHTML =
@@ -1402,13 +1538,212 @@ function renderRecap() {
         '<span style="color:' + (b>=0?'var(--emerald)':'var(--rose)') + ';font-weight:700">' + (b>=0?'+':'') + b + '</span>' +
       '</div></div>';
   }).join('') : '<div class="empty">Aucun mouvement</div>';
+
+  /* Movement detail table (used for custom date + print) */
+  var mvts = r._mouvements || [];
+  var tbody = document.getElementById('r-mvt-body');
+  if (tbody) {
+    tbody.innerHTML = mvts.length ? mvts.map(function(m) {
+      var isE = m.type === 'ENTREE';
+      return '<tr>' +
+        '<td class="tm">' + fmtDShort(m.horodatage) + '</td>' +
+        '<td style="font-weight:600;color:var(--text-h)">' + m.produit_nom + '</td>' +
+        '<td><span class="badge ' + (isE?'bd-g':'bd-r') + '" style="padding:1px 6px;font-size:.62rem">' + m.type + '</span></td>' +
+        '<td style="color:' + (isE?'var(--emerald)':'var(--rose)') + ';font-weight:600;font-family:var(--mono)">' + (isE?'＋':'−') + m.quantite + '</td>' +
+        '<td class="tm">' + (m.motif||'—') + '</td>' +
+        '<td class="tm">' + (m.operateur||'—') + '</td>' +
+        '</tr>';
+    }).join('') : '<tr><td colspan="6"><div class="empty">Aucun mouvement sur la période</div></td></tr>';
+    document.getElementById('r-mvt-card').style.display = mvts.length ? '' : 'none';
+  }
+}
+
+/* ═══ PRINT RECAP ══════════════════════════════════════════ */
+function printRecap() {
+  var r = S.recap;
+  if (!r) { toast('Aucun récapitulatif à imprimer'); return; }
+
+  var periodeLabel = {
+    jour:'Aujourd\'hui', semaine:'Cette semaine', mois:'Ce mois', custom:'Période personnalisée'
+  }[S.periode] || S.periode;
+
+  // Custom date label
+  if (S.periode === 'custom') {
+    var df = document.getElementById('date-from').value;
+    var dt = document.getElementById('date-to').value;
+    if (df && dt) periodeLabel = 'Du ' + df.split('-').reverse().join('/') + ' au ' + dt.split('-').reverse().join('/');
+  }
+
+  var now  = new Date().toLocaleString('fr-FR');
+  var bal  = (r.entrees||0) - (r.sorties||0);
+  var pp   = r.par_produit || {};
+  var mvts = r._mouvements || [];
+
+  // Build by-product table rows
+  var prodRows = Object.keys(pp).map(function(n) {
+    var d = pp[n], b = d.entrees - d.sorties;
+    return '<tr>' +
+      '<td>' + n + '</td>' +
+      '<td class="num green">+' + d.entrees + '</td>' +
+      '<td class="num red">−'  + d.sorties  + '</td>' +
+      '<td class="num ' + (b>=0?'green':'red') + '">' + (b>=0?'+':'') + b + '</td>' +
+      '<td class="num">' + d.nb + '</td>' +
+      '</tr>';
+  }).join('');
+
+  // Build movement detail rows
+  var mvtRows = mvts.map(function(m) {
+    var isE = m.type === 'ENTREE';
+    return '<tr>' +
+      '<td>' + fmtDShort(m.horodatage) + '</td>' +
+      '<td>' + m.produit_nom + '</td>' +
+      '<td><b style="color:' + (isE?'#059669':'#e11d48') + '">' + m.type + '</b></td>' +
+      '<td class="num ' + (isE?'green':'red') + '">' + (isE?'+':'−') + m.quantite + '</td>' +
+      '<td>' + (m.motif||'—') + '</td>' +
+      '<td>' + (m.operateur||'—') + '</td>' +
+      '</tr>';
+  }).join('');
+
+  document.getElementById('print-area').innerHTML =
+    '<div class="pr-header">' +
+      '<div><div class="pr-logo">📦 StockFlow</div><div style="font-size:.75rem;color:#64748b;margin-top:2px">Gestion de stock</div></div>' +
+      '<div class="pr-meta"><div style="font-weight:700;font-size:.9rem;color:#1e293b">Rapport de stock</div><div>' + now + '</div></div>' +
+    '</div>' +
+    '<div class="pr-period">Période : ' + periodeLabel + '</div>' +
+    '<div class="pr-kpis">' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">Mouvements</div><div class="pr-kpi-val">' + (r.nb||0) + '</div></div>' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">Entrées</div><div class="pr-kpi-val green">+' + (r.entrees||0) + '</div></div>' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">Sorties</div><div class="pr-kpi-val red">−' + (r.sorties||0) + '</div></div>' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">Balance</div><div class="pr-kpi-val ' + (bal>=0?'green':'red') + '">' + (bal>=0?'+':'') + bal + '</div></div>' +
+    '</div>' +
+
+    (prodRows ? (
+      '<div class="pr-section-title">Par produit</div>' +
+      '<table class="pr-table"><thead><tr>' +
+        '<th>Produit</th><th>Entrées</th><th>Sorties</th><th>Balance</th><th>Mouv.</th>' +
+      '</tr></thead><tbody>' + prodRows + '</tbody></table>'
+    ) : '') +
+
+    (mvtRows ? (
+      '<div class="pr-section-title">Détail des mouvements</div>' +
+      '<table class="pr-table"><thead><tr>' +
+        '<th>Date</th><th>Produit</th><th>Type</th><th>Qté</th><th>Motif</th><th>Opérateur</th>' +
+      '</tr></thead><tbody>' + mvtRows + '</tbody></table>'
+    ) : '') +
+
+    '<div class="pr-footer">Généré par StockFlow · ' + now + ' · ' + (r.nb||0) + ' mouvement(s)</div>';
+
+  setTimeout(function() { window.print(); }, 100);
+}
+
+/* ═══ PRINT STOCK STATE ════════════════════════════════════ */
+function printStock() {
+  var stocks = S.stocks;
+  if (!stocks.length) { toast('Aucun stock à imprimer'); return; }
+
+  var now      = new Date().toLocaleString('fr-FR');
+  var ruptures = stocks.filter(function(s) { return +s.stock === 0; });
+  var alertes  = stocks.filter(function(s) { return +s.stock > 0 && +s.stock <= +s.seuil; });
+  var ok       = stocks.filter(function(s) { return +s.stock > +s.seuil; });
+
+  /* Group by category */
+  var cats = {};
+  stocks.forEach(function(s) {
+    var cat = s.categorie || 'Autres';
+    if (!cats[cat]) cats[cat] = [];
+    cats[cat].push(s);
+  });
+
+  /* Build stock cards grid per category */
+  var catSections = Object.keys(cats).sort().map(function(cat) {
+    var cards = cats[cat].map(function(s) {
+      var isR  = +s.stock === 0;
+      var isA  = !isR && +s.stock <= +s.seuil;
+      var cls  = isR ? 'rupture' : isA ? 'alerte' : 'ok';
+      var badge = isR
+        ? '<span style="font-size:.65rem;font-weight:700;color:#e11d48;background:#fff1f2;border:1px solid #fecdd3;border-radius:4px;padding:1px 5px;margin-left:4px">RUPTURE</span>'
+        : isA
+        ? '<span style="font-size:.65rem;font-weight:700;color:#d97706;background:#fffbeb;border:1px solid #fde68a;border-radius:4px;padding:1px 5px;margin-left:4px">ALERTE</span>'
+        : '';
+      return '<div class="pr-stock-card ' + cls + '">' +
+        '<div class="pr-stock-nom">' + s.nom + badge + '</div>' +
+        '<div class="pr-stock-cat">' + (s.categorie||'—') + '</div>' +
+        '<div>' +
+          '<span class="pr-stock-qty ' + cls + '">' + s.stock + '</span>' +
+          '<span class="pr-stock-unit">' + s.unite + '</span>' +
+        '</div>' +
+        '<div class="pr-stock-seuil">Seuil : ' + s.seuil + ' ' + s.unite + '</div>' +
+      '</div>';
+    }).join('');
+    return '<div class="pr-section-title">' + cat + '</div>' +
+           '<div class="pr-stock-grid">' + cards + '</div>';
+  }).join('');
+
+  /* Summary table by category */
+  var summaryRows = Object.keys(cats).sort().map(function(cat) {
+    var items  = cats[cat];
+    var rupt   = items.filter(function(s) { return +s.stock === 0; }).length;
+    var ale    = items.filter(function(s) { return +s.stock > 0 && +s.stock <= +s.seuil; }).length;
+    return '<tr>' +
+      '<td><b>' + cat + '</b></td>' +
+      '<td class="num">' + items.length + '</td>' +
+      '<td class="num green">' + (items.length - ale - rupt) + '</td>' +
+      '<td class="num" style="color:#d97706">' + ale + '</td>' +
+      '<td class="num red">' + rupt + '</td>' +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('print-area').innerHTML =
+    '<div class="pr-header">' +
+      '<div><div class="pr-logo">📦 StockFlow</div><div style="font-size:.75rem;color:#64748b;margin-top:2px">Gestion de stock</div></div>' +
+      '<div class="pr-meta"><div style="font-weight:700;font-size:.9rem;color:#1e293b">État du stock</div><div>' + now + '</div></div>' +
+    '</div>' +
+
+    '<div class="pr-kpis">' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">Total produits</div><div class="pr-kpi-val">' + stocks.length + '</div></div>' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">OK</div><div class="pr-kpi-val green">' + ok.length + '</div></div>' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">Alertes</div><div class="pr-kpi-val" style="color:#d97706">' + alertes.length + '</div></div>' +
+      '<div class="pr-kpi"><div class="pr-kpi-lbl">Ruptures</div><div class="pr-kpi-val red">' + ruptures.length + '</div></div>' +
+    '</div>' +
+
+    '<div class="pr-legend">' +
+      '<div class="pr-legend-item"><div class="pr-dot" style="background:#059669"></div><span>Stock OK</span></div>' +
+      '<div class="pr-legend-item"><div class="pr-dot" style="background:#d97706"></div><span>Alerte (sous seuil)</span></div>' +
+      '<div class="pr-legend-item"><div class="pr-dot" style="background:#e11d48"></div><span>Rupture (stock zéro)</span></div>' +
+    '</div>' +
+
+    '<div class="pr-section-title">Résumé par catégorie</div>' +
+    '<table class="pr-table" style="margin-bottom:20px"><thead><tr>' +
+      '<th>Catégorie</th><th>Total</th><th>OK</th><th>Alertes</th><th>Ruptures</th>' +
+    '</tr></thead><tbody>' + summaryRows + '</tbody></table>' +
+
+    catSections +
+
+    '<div class="pr-footer">État du stock imprimé depuis StockFlow · ' + now + ' · ' + stocks.length + ' produit(s)</div>';
+
+  setTimeout(function() { window.print(); }, 100);
 }
 
 function setPeriod(p) {
   S.periode = p;
-  ['jour','semaine','mois'].forEach(function(x) {
-    document.getElementById('p-'+x).className = 'btn btn-sm ' + (x===p ? 'btn-p' : 'btn-o');
+  // Update button styles — now 4 buttons
+  ['jour','semaine','mois','custom'].forEach(function(x) {
+    var btn = document.getElementById('p-'+x);
+    if (btn) btn.className = 'btn btn-sm ' + (x===p ? 'btn-p' : 'btn-o');
   });
+  // Show/hide custom date range
+  var customRow = document.getElementById('custom-date-row');
+  if (customRow) customRow.style.display = p === 'custom' ? 'flex' : 'none';
+  if (p === 'custom') {
+    // Set sensible defaults: this month
+    var now = new Date();
+    var y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+    var df = document.getElementById('date-from');
+    var dt = document.getElementById('date-to');
+    if (df && !df.value) df.value = y+'-'+m+'-01';
+    if (dt && !dt.value) dt.value = now.toISOString().slice(0,10);
+    applyCustomDate(); return;
+  }
   if (IS_DEMO) { renderRecap(); return; }
   setLoading(true);
   api({action:'recap', periode:p})
@@ -1416,6 +1751,52 @@ function setPeriod(p) {
     .catch(function(e) { setErr(e.message); });
   setTimeout(function() { setLoading(false); }, 16000);
 }
+
+/* ── Custom date range ─────────────────────────────────── */
+function applyCustomDate() {
+  var from = document.getElementById('date-from').value;
+  var to   = document.getElementById('date-to').value;
+  if (!from || !to) return;
+  if (from > to) {
+    // Swap silently
+    document.getElementById('date-from').value = to;
+    document.getElementById('date-to').value   = from;
+    from = to; to = document.getElementById('date-to').value;
+  }
+  // Filter from cached mouvements + compute recap locally
+  S.recap = computeRecapFromCache(from, to + 'T23:59:59');
+  renderRecap();
+}
+
+/* Compute recap stats from S.mouvements (used offline + custom date) */
+function computeRecapFromCache(depuis, jusqua) {
+  var mvts = S.mouvements.filter(function(m) {
+    if (!m.horodatage) return false;
+    if (depuis  && m.horodatage < depuis)  return false;
+    if (jusqua  && m.horodatage > jusqua)  return false;
+    return true;
+  });
+  var totalE=0, totalS=0, nb=0, pp={}, pj={};
+  mvts.forEach(function(m) {
+    var qty = +m.quantite || 0;
+    var jour = String(m.horodatage).slice(0,10);
+    var nom  = m.produit_nom;
+    if (m.type==='ENTREE') totalE+=qty; else totalS+=qty;
+    nb++;
+    if (!pp[nom]) pp[nom]={entrees:0,sorties:0,nb:0};
+    if (m.type==='ENTREE') pp[nom].entrees+=qty; else pp[nom].sorties+=qty;
+    pp[nom].nb++;
+    if (!pj[jour]) pj[jour]={entrees:0,sorties:0};
+    if (m.type==='ENTREE') pj[jour].entrees+=qty; else pj[jour].sorties+=qty;
+  });
+  return {
+    nb:nb, entrees:totalE, sorties:totalS,
+    par_produit:pp, par_jour:pj,
+    _mouvements: mvts  // keep for print detail
+  };
+}
+
+/* ── renderRecap — now also fills movement detail table ─── */
 
 /* ═══ BULK MOVEMENTS ═══════════════════════════════════════ */
 var BULK_TYPE = 'ENTREE';
