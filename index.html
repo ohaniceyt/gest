@@ -1514,6 +1514,68 @@ function renderProduits() {
   }).join('');
 }
 
+/* ═══ RECAP PERIOD & CUSTOM DATE ══════════════════════════ */
+function setPeriod(p) {
+  S.periode = p;
+  ['jour','semaine','mois','custom'].forEach(function(x) {
+    var btn = document.getElementById('p-'+x);
+    if (btn) btn.className = 'btn btn-sm ' + (x===p ? 'btn-p' : 'btn-o');
+  });
+  var row = document.getElementById('custom-date-row');
+  if (row) row.style.display = p==='custom' ? 'flex' : 'none';
+  if (p === 'custom') {
+    var now = new Date();
+    var y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+    var df = document.getElementById('date-from');
+    var dt = document.getElementById('date-to');
+    if (df && !df.value) df.value = y+'-'+m+'-01';
+    if (dt && !dt.value) dt.value = now.toISOString().slice(0,10);
+    applyCustomDate(); return;
+  }
+  if (IS_DEMO) { renderRecap(); return; }
+  setLoading(true);
+  api({action:'recap', periode:p})
+    .then(function(r) { if(r) { S.recap=r.data; renderRecap(); } })
+    .catch(function(e) { setErr(e.message); });
+  setTimeout(function() { setLoading(false); }, 16000);
+}
+
+function applyCustomDate() {
+  var from = document.getElementById('date-from').value;
+  var to   = document.getElementById('date-to').value;
+  if (!from || !to) return;
+  if (from > to) {
+    document.getElementById('date-from').value = to;
+    document.getElementById('date-to').value   = from;
+    from = to; to = document.getElementById('date-to').value;
+  }
+  S.recap = computeRecapFromCache(from, to + 'T23:59:59');
+  renderRecap();
+}
+
+function computeRecapFromCache(depuis, jusqua) {
+  var mvts = S.mouvements.filter(function(m) {
+    if (!m.horodatage) return false;
+    if (depuis && m.horodatage < depuis)  return false;
+    if (jusqua && m.horodatage > jusqua)  return false;
+    return true;
+  });
+  var totalE=0, totalS=0, nb=0, pp={}, pj={};
+  mvts.forEach(function(m) {
+    var qty  = +m.quantite || 0;
+    var jour = String(m.horodatage).slice(0,10);
+    var nom  = m.produit_nom;
+    if (m.type==='ENTREE') totalE+=qty; else totalS+=qty;
+    nb++;
+    if (!pp[nom]) pp[nom]={entrees:0,sorties:0,nb:0};
+    if (m.type==='ENTREE') pp[nom].entrees+=qty; else pp[nom].sorties+=qty;
+    pp[nom].nb++;
+    if (!pj[jour]) pj[jour]={entrees:0,sorties:0};
+    if (m.type==='ENTREE') pj[jour].entrees+=qty; else pj[jour].sorties+=qty;
+  });
+  return { nb:nb, entrees:totalE, sorties:totalS, par_produit:pp, par_jour:pj, _mouvements:mvts };
+}
+
 /* ── renderRecap — now also fills movement detail table ─── */
 function renderRecap() {
   var r  = S.recap, el = document.getElementById('r-stats');
