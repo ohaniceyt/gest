@@ -2009,6 +2009,109 @@ function saveMvt() {
   }).catch(function(e) { err.textContent='⚠ '+e.message; err.classList.add('on'); });
 }
 
+/* ═══ BULK MOVEMENTS ═══════════════════════════════════════ */
+var BULK_TYPE   = 'ENTREE';
+var BULK_ROW_ID = 0;
+
+function openBulk() {
+  BULK_TYPE = 'ENTREE';
+  setBulkType('ENTREE');
+  document.getElementById('bulk-motif').value = '';
+  document.getElementById('bulk-op').value    = localStorage.getItem(OP_KEY) || '';
+  document.getElementById('bulk-err').classList.remove('on');
+  document.getElementById('bulk-rows').innerHTML = '';
+  BULK_ROW_ID = 0;
+  addBulkRow(); addBulkRow();
+  updateBulkSummary();
+  openOv('ov-bulk');
+  closeFab();
+}
+
+function setBulkType(t) {
+  BULK_TYPE = t;
+  document.getElementById('bulk-tt-e').className = 'ttb' + (t==='ENTREE' ? ' e' : '');
+  document.getElementById('bulk-tt-s').className = 'ttb' + (t==='SORTIE' ? ' s' : '');
+  var btn = document.getElementById('bulk-save');
+  btn.className   = 'btn btn-full ' + (t==='ENTREE' ? 'btn-g' : 'btn-r');
+  btn.textContent = t==='ENTREE' ? 'Enregistrer les entrées' : 'Enregistrer les sorties';
+  updateBulkSummary();
+}
+
+function addBulkRow() {
+  var id  = ++BULK_ROW_ID;
+  var opts = '<option value="">— Produit —</option>' +
+    S.produits.map(function(p) {
+      return '<option value="'+p.id+'">'+p.nom+'</option>';
+    }).join('');
+  var div = document.createElement('div');
+  div.className = 'bulk-row';
+  div.id = 'bulk-row-'+id;
+  div.innerHTML =
+    '<select onchange="updateBulkSummary()">'+opts+'</select>'+
+    '<input type="number" min="1" value="1" inputmode="numeric" onchange="updateBulkSummary()" oninput="updateBulkSummary()">'+
+    '<button class="bulk-del" onclick="removeBulkRow('+id+')" title="Supprimer">✕</button>';
+  document.getElementById('bulk-rows').appendChild(div);
+  updateBulkSummary();
+}
+
+function removeBulkRow(id) {
+  var el = document.getElementById('bulk-row-'+id);
+  if (el) el.remove();
+  updateBulkSummary();
+}
+
+function getBulkRows() {
+  return Array.from(document.querySelectorAll('#bulk-rows .bulk-row')).map(function(row) {
+    var sel = row.querySelector('select');
+    var inp = row.querySelector('input[type=number]');
+    return { produit_id:sel.value, produit_nom:sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].text:'', quantite:+inp.value||0 };
+  }).filter(function(r) { return r.produit_id && r.quantite > 0; });
+}
+
+function updateBulkSummary() {
+  var rows = getBulkRows();
+  var el   = document.getElementById('bulk-summary');
+  if (!rows.length) { el.innerHTML = 'Ajoutez des produits ci-dessus.'; return; }
+  var icon = BULK_TYPE==='ENTREE' ? '▲' : '▼';
+  var col  = BULK_TYPE==='ENTREE' ? 'var(--emerald)' : 'var(--rose)';
+  var total = rows.reduce(function(s,r){return s+r.quantite;},0);
+  el.innerHTML = rows.map(function(r) {
+    return '<span style="color:'+col+';font-weight:600">'+icon+' '+r.quantite+'</span>  '+r.produit_nom;
+  }).join('<br>') +
+  '<br><span style="color:var(--text-h);font-weight:700">'+rows.length+' produit'+(rows.length>1?'s':'')+' · '+total+' unité'+(total>1?'s':'')+' au total</span>';
+}
+
+function saveBulk() {
+  var rows  = getBulkRows();
+  var motif = document.getElementById('bulk-motif').value.trim();
+  var op    = document.getElementById('bulk-op').value.trim();
+  var err   = document.getElementById('bulk-err');
+  err.classList.remove('on');
+  if (!rows.length) { err.textContent='⚠ Ajoute au moins un produit avec une quantité.'; err.classList.add('on'); return; }
+  var dups={};
+  var hasDup = rows.some(function(r){ if(dups[r.produit_id])return true; dups[r.produit_id]=true; return false; });
+  if (hasDup) { err.textContent='⚠ Un produit apparaît plusieurs fois.'; err.classList.add('on'); return; }
+  if (op) localStorage.setItem(OP_KEY, op);
+  if (IS_DEMO) { toast(BULK_TYPE==='ENTREE'?rows.length+' entrées enregistrées ✓':rows.length+' sorties enregistrées ✓'); closeOv('ov-bulk'); return; }
+
+  var btn = document.getElementById('bulk-save');
+  btn.disabled = true;
+  var chain = Promise.resolve();
+  var allQueued = true;
+  rows.forEach(function(r) {
+    chain = chain.then(function() {
+      return apiOrQueue({ produit_id:r.produit_id, produit_nom:r.produit_nom, type:BULK_TYPE, quantite:r.quantite, motif:motif, operateur:op||'Anonyme' })
+        .then(function(res){ if(res&&!res._queued) allQueued=false; });
+    });
+  });
+  chain.then(function() {
+    if (allQueued && !navigator.onLine) toast(rows.length+' mouvement'+(rows.length>1?'s':'')+' sauvegardé'+(rows.length>1?'s':'')+' localement 📱');
+    else { toast(BULK_TYPE==='ENTREE'?rows.length+' entrées enregistrées ✓':rows.length+' sorties enregistrées ✓'); doRefresh(); }
+    closeOv('ov-bulk');
+  }).catch(function(e){ err.textContent='⚠ '+e.message; err.classList.add('on'); })
+    .then(function(){ btn.disabled=false; });
+}
+
 function openProd(d) {
   document.getElementById('prod-title').textContent = d ? 'Modifier' : 'Nouveau produit';
   document.getElementById('pr-nom').value   = d&&d.nom   || '';
