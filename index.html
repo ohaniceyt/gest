@@ -1459,7 +1459,13 @@ function renderStock() {
     el.innerHTML = '<div class="empty" style="grid-column:1/-1">Aucun produit — créez-en dans l\'onglet Produits</div>';
     return;
   }
-  el.innerHTML = S.stocks.map(function(s) {
+  /* Total quantity across all products */
+  var totalUnites = S.stocks.reduce(function(sum, s) { return sum + (+s.stock || 0); }, 0);
+  var totalBanner = '<div style="grid-column:1/-1;background:var(--indigo-50);border:1px solid var(--indigo-200);border-radius:var(--r-md);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">' +
+    '<span style="font-size:.78rem;font-weight:600;color:var(--indigo-700)">📦 Stock total cumulé</span>' +
+    '<span style="font-size:1.4rem;font-weight:800;color:var(--indigo);letter-spacing:-.03em">' + totalUnites.toLocaleString('fr-FR') + ' <span style="font-size:.8rem;font-weight:500;color:var(--indigo-700)">unités</span></span>' +
+    '</div>';
+  el.innerHTML = totalBanner + S.stocks.map(function(s) {
     var isR = +s.stock === 0, isA = !isR && +s.stock <= +s.seuil;
     var col = isR ? 'var(--rose)' : isA ? 'var(--amber)' : 'var(--emerald)';
     var cls = isR ? 'bd-r' : isA ? 'bd-y' : 'bd-g';
@@ -1699,12 +1705,14 @@ function pdfStock() {
   var rupt=stocks.filter(function(s){return +s.stock===0;});
   var ale =stocks.filter(function(s){return +s.stock>0&&+s.stock<=+s.seuil;});
   var ok  =stocks.filter(function(s){return +s.stock>+s.seuil;});
+  var totalU = stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
   var ctx=_newDoc('État du stock','Stock en temps réel');
   _kpiRow(ctx,[
-    {label:'Total',    value:stocks.length, color:[30,41,59]},
-    {label:'OK',       value:ok.length,     color:[5,150,105]},
-    {label:'Alertes',  value:ale.length,    color:[217,119,6]},
-    {label:'Ruptures', value:rupt.length,   color:[225,29,72]}
+    {label:'Produits',  value:stocks.length, color:[30,41,59]},
+    {label:'Total unités', value:totalU,     color:[79,70,229]},
+    {label:'OK',        value:ok.length,     color:[5,150,105]},
+    {label:'Alertes',   value:ale.length,    color:[217,119,6]},
+    {label:'Ruptures',  value:rupt.length,   color:[225,29,72]}
   ]);
   ctx.doc.autoTable({
     startY:ctx.y, margin:{left:12,right:12},
@@ -1881,9 +1889,11 @@ function exportWhatsApp() {
     hour:'2-digit', minute:'2-digit'
   });
 
+  var totalUnites = stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
   var lines = [
     '📦 *ÉTAT DU STOCK — StockFlow*',
     '🕐 ' + now,
+    '📊 Stock total : *' + totalUnites.toLocaleString('fr-FR') + ' unités*',
     '─────────────────────────'
   ];
 
