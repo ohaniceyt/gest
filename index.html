@@ -1461,9 +1461,19 @@ function renderStock() {
   }
   /* Total quantity across all products */
   var totalUnites = S.stocks.reduce(function(sum, s) { return sum + (+s.stock || 0); }, 0);
-  var totalBanner = '<div style="grid-column:1/-1;background:var(--indigo-50);border:1px solid var(--indigo-200);border-radius:var(--r-md);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">' +
-    '<span style="font-size:.78rem;font-weight:600;color:var(--indigo-700)">📦 Stock total cumulé</span>' +
-    '<span style="font-size:1.4rem;font-weight:800;color:var(--indigo);letter-spacing:-.03em">' + totalUnites.toLocaleString('fr-FR') + ' <span style="font-size:.8rem;font-weight:500;color:var(--indigo-700)">unités</span></span>' +
+  /* Opening/closing for today */
+  var todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  var oc = _stockOC(todayStart.toISOString(), null);
+  var totalBanner =
+    '<div style="grid-column:1/-1;background:var(--indigo-50);border:1px solid var(--indigo-200);border-radius:var(--r-md);padding:12px 16px;margin-bottom:2px">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+        '<span style="font-size:.78rem;font-weight:600;color:var(--indigo-700)">📦 Stock total cumulé</span>' +
+        '<span style="font-size:1.4rem;font-weight:800;color:var(--indigo);letter-spacing:-.03em">' + totalUnites.toLocaleString('fr-FR') + ' <span style="font-size:.8rem;font-weight:500;color:var(--indigo-700)">unités</span></span>' +
+      '</div>' +
+      '<div style="display:flex;gap:16px;font-size:.75rem;color:var(--indigo-700)">' +
+        '<span>📂 <b>Ouverture (aujourd\'hui)</b> : ' + oc.ouverture.toLocaleString('fr-FR') + ' unités</span>' +
+        '<span>📁 <b>Clôture</b> : ' + oc.cloture.toLocaleString('fr-FR') + ' unités</span>' +
+      '</div>' +
     '</div>';
   el.innerHTML = totalBanner + S.stocks.map(function(s) {
     var isR = +s.stock === 0, isA = !isR && +s.stock <= +s.seuil;
@@ -1697,6 +1707,24 @@ function _footers(doc) {
 var AT_HEAD={fillColor:[79,70,229],textColor:255,fontStyle:'bold',fontSize:7};
 var AT_ALT ={fillColor:[248,250,252]};
 
+/* ── Shared: compute opening & closing stock for a period ──
+   Opening = closing - net movements of the period
+   Closing = current live stock (snapshot)
+─────────────────────────────────────────────────────────── */
+function _stockOC(depuis, jusqua) {
+  var cloture   = S.stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
+  var mvts = S.mouvements.filter(function(m){
+    if(!m.horodatage) return false;
+    if(depuis && m.horodatage < depuis) return false;
+    if(jusqua && m.horodatage > jusqua) return false;
+    return true;
+  });
+  var netPeriode = mvts.reduce(function(sum,m){
+    return sum + (m.type==='ENTREE' ? +(m.quantite||0) : -(+(m.quantite||0)));
+  },0);
+  return { ouverture: cloture - netPeriode, cloture: cloture };
+}
+
 /* ═══ PDF STOCK ════════════════════════════════════════════ */
 function pdfStock() {
   var stocks=S.stocks;
@@ -1706,13 +1734,19 @@ function pdfStock() {
   var ale =stocks.filter(function(s){return +s.stock>0&&+s.stock<=+s.seuil;});
   var ok  =stocks.filter(function(s){return +s.stock>+s.seuil;});
   var totalU = stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
+  var todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  var oc = _stockOC(todayStart.toISOString(), null);
   var ctx=_newDoc('État du stock','Stock en temps réel');
   _kpiRow(ctx,[
-    {label:'Produits',  value:stocks.length, color:[30,41,59]},
-    {label:'Total unités', value:totalU,     color:[79,70,229]},
-    {label:'OK',        value:ok.length,     color:[5,150,105]},
-    {label:'Alertes',   value:ale.length,    color:[217,119,6]},
-    {label:'Ruptures',  value:rupt.length,   color:[225,29,72]}
+    {label:'Produits',       value:stocks.length, color:[30,41,59]},
+    {label:'Total unités',   value:totalU,        color:[79,70,229]},
+    {label:'OK',             value:ok.length,     color:[5,150,105]},
+    {label:'Alertes',        value:ale.length,    color:[217,119,6]},
+    {label:'Ruptures',       value:rupt.length,   color:[225,29,72]}
+  ]);
+  _kpiRow(ctx,[
+    {label:'Ouverture (aujourd\'hui)', value:oc.ouverture, color:[100,116,139]},
+    {label:'Clôture (maintenant)',     value:oc.cloture,   color:[79,70,229]}
   ]);
   ctx.doc.autoTable({
     startY:ctx.y, margin:{left:12,right:12},
@@ -1747,11 +1781,15 @@ function pdfRecap() {
   }
   var ctx=_newDoc('Récapitulatif · '+lbl,'Rapport de mouvements');
   var bal=(r.entrees||0)-(r.sorties||0);
+  /* Compute opening/closing for the selected period */
+  var periodDebut = r.depuis || null;
+  var ocR = _stockOC(periodDebut, null);
   _kpiRow(ctx,[
-    {label:'Mouvements',value:r.nb||0,            color:[79,70,229]},
-    {label:'Entrées',   value:'+'+(r.entrees||0), color:[5,150,105]},
-    {label:'Sorties',   value:'−'+(r.sorties||0), color:[225,29,72]},
-    {label:'Balance',   value:(bal>=0?'+':'')+bal, color:bal>=0?[5,150,105]:[225,29,72]}
+    {label:'Ouverture période', value:ocR.ouverture, color:[100,116,139]},
+    {label:'Entrées',           value:'+'+(r.entrees||0), color:[5,150,105]},
+    {label:'Sorties',           value:'−'+(r.sorties||0), color:[225,29,72]},
+    {label:'Balance',           value:(bal>=0?'+':'')+bal, color:bal>=0?[5,150,105]:[225,29,72]},
+    {label:'Clôture période',   value:ocR.cloture,   color:[79,70,229]}
   ]);
   var pp=r.par_produit||{};
   if(Object.keys(pp).length){
@@ -1836,11 +1874,14 @@ function whatsappRecap() {
     if(df&&dt)lbl='Du '+df.split('-').reverse().join('/')+' au '+dt.split('-').reverse().join('/');
   }
   var bal=(r.entrees||0)-(r.sorties||0);
+  var ocR = _stockOC(r.depuis||null, null);
   var lines=[
     '📊 *RÉCAPITULATIF — StockFlow*','📅 '+lbl,'─────────────────────────',
+    '📂 Ouverture : *'+ocR.ouverture.toLocaleString('fr-FR')+' unités*',
     '▲ Entrées   : *'+(r.entrees||0)+' unités*',
     '▼ Sorties   : *'+(r.sorties||0)+' unités*',
     '≡ Balance   : *'+(bal>=0?'+':'')+bal+' unités*',
+    '📁 Clôture  : *'+ocR.cloture.toLocaleString('fr-FR')+' unités*',
     '⇅ Mouvements : *'+(r.nb||0)+'*'
   ];
   var pp=r.par_produit||{};
@@ -1890,10 +1931,14 @@ function exportWhatsApp() {
   });
 
   var totalUnites = stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
+  var todayStart2 = new Date(); todayStart2.setHours(0,0,0,0);
+  var ocW = _stockOC(todayStart2.toISOString(), null);
   var lines = [
     '📦 *ÉTAT DU STOCK — StockFlow*',
     '🕐 ' + now,
     '📊 Stock total : *' + totalUnites.toLocaleString('fr-FR') + ' unités*',
+    '📂 Ouverture (auj.) : *' + ocW.ouverture.toLocaleString('fr-FR') + ' unités*',
+    '📁 Clôture : *' + ocW.cloture.toLocaleString('fr-FR') + ' unités*',
     '─────────────────────────'
   ];
 
