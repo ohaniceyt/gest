@@ -397,9 +397,10 @@ td{padding:10px;vertical-align:middle;color:var(--text-body)}
 canvas{display:block;width:100%}
 .empty{text-align:center;padding:32px 16px;color:var(--text-faint);font-size:.84rem}
 
-/* ═══ DESKTOP OVERRIDES ════════════════════════════════════ */
+/* ═══ DESKTOP OVERRIDES (≥ 768px) ═════════════════════════ */
 @media(min-width:768px){
-  /* FIX: override mobile flex column layout for desktop */
+
+  /* ── App shell — revert to normal document flow ── */
   #app.on{
     display:block;
     height:auto;
@@ -409,44 +410,117 @@ canvas{display:block;width:100%}
     overflow:visible;
     padding-bottom:0;
   }
+
+  /* ── Topbar ── */
   .topbar{
-    position:sticky;top:0;z-index:100;
-    height:56px;padding-top:0;padding-left:20px;padding-right:20px;
+    position:sticky;
+    top:0;
+    z-index:100;
+    height:56px;
+    padding-top:0;
+    padding-left:20px;
+    padding-right:20px;
   }
-  /* Replace bottom tabs with top nav on desktop */
+
+  /* ── Bottom nav → horizontal top nav ── */
   .tabnav{
-    position:sticky;top:56px;z-index:99;
-    height:auto;padding:0 20px;
-    border-top:none;border-bottom:1px solid var(--border);
-    background:rgba(255,255,255,.96);
+    position:sticky;
+    top:56px;
+    z-index:99;
+    height:auto;
+    padding:0 20px;
+    border-top:none;
+    border-bottom:1px solid var(--border);
+    background:rgba(255,255,255,.97);
     backdrop-filter:blur(12px) saturate(180%);
-    flex-direction:row;flex-wrap:wrap;
-    backdrop-filter:none;
+    -webkit-backdrop-filter:blur(12px) saturate(180%);
+    display:flex;
+    flex-direction:row;
+    flex-wrap:nowrap;
+    align-items:stretch;
+    box-shadow:0 1px 3px rgba(0,0,0,.04);
   }
+
+  /* ── Tab items ── */
   .tab{
-    flex:none;flex-direction:row;gap:6px;padding:14px 12px;
-    border-radius:0;border-bottom:2px solid transparent;margin:0;
+    flex:none;
+    flex-direction:row;
+    align-items:center;
+    gap:7px;
+    padding:0 14px;
+    height:44px;
+    border-radius:0;
+    border-bottom:2px solid transparent;
+    border-top:none;
+    margin:0;
+    color:var(--text-muted);
+    background:transparent;
+    transition:color var(--t1),border-color var(--t1),background var(--t1);
   }
-  .tab.on{background:transparent;border-bottom-color:var(--indigo)}
-  .tab-icon{font-size:15px;transform:none!important}
-  .tab-lbl{font-size:.8rem;font-weight:inherit}
-  .tab.on .tab-lbl{font-weight:600}
-  .wrap{padding:24px 20px;max-width:1320px;margin:0 auto}
-  .sg{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
-  .sc-val{font-size:1.875rem}
-  .stock-grid{grid-template-columns:repeat(auto-fill,minmax(195px,1fr))}
-  /* Hide FAB, show nothing (desktop has nav buttons) */
-  .fab,.fab-menu,.fab-overlay{display:none!important}
-  /* Desktop modals centered, not bottom sheets */
-  .ov{align-items:center}
-  .modal{border-radius:var(--r-xl);max-width:480px;padding:0;max-height:90vh}
-  .sheet-handle{display:none}
-  .sheet-body{padding:24px}
-  .mf{flex-direction:row;justify-content:flex-end}
-  .btn-full{width:auto;padding:9px 16px}
-  .ptr{display:none}
-  #offline-bar{position:static}
-  #toast{bottom:22px}
+  .tab:hover{
+    color:var(--text-body);
+    background:var(--surface-2);
+  }
+  .tab.on{
+    color:var(--indigo);
+    border-bottom-color:var(--indigo);
+    background:transparent;
+    font-weight:600;
+  }
+  .tab-icon{
+    font-size:15px;
+    /* Prevent mobile scale animation on desktop */
+    transform:none!important;
+    transition:none!important;
+  }
+  .tab-lbl{
+    font-size:.8rem;
+    font-weight:500;
+    color:inherit;
+  }
+  .tab.on .tab-lbl{ font-weight:600; color:var(--indigo); }
+
+  /* ── Content ── */
+  .wrap{ padding:24px 20px; max-width:1320px; margin:0 auto; }
+
+  /* ── Stat grid ── */
+  .sg{ grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); }
+  .sc-val{ font-size:1.875rem; }
+
+  /* ── Stock grid ── */
+  .stock-grid{ grid-template-columns:repeat(auto-fill,minmax(195px,1fr)); }
+
+  /* ── Hide mobile-only elements ── */
+  .fab, .fab-menu, .fab-overlay{ display:none!important; }
+  .ptr{ display:none; }
+  #offline-bar{ position:static; }
+  #install-banner{ margin-left:0; margin-right:0; }
+
+  /* ── Modals — centered dialog instead of bottom sheet ── */
+  .ov{ align-items:center; }
+  .modal{
+    border-radius:var(--r-xl);
+    max-width:480px;
+    padding:0;
+    max-height:90vh;
+  }
+  .sheet-handle{ display:none; }
+  .sheet-body{ padding:24px; }
+  .mf{ flex-direction:row; justify-content:flex-end; }
+  .btn-full{ width:auto; padding:9px 16px; font-size:.84rem; }
+
+  /* ── Bulk modal wider on desktop ── */
+  #ov-bulk .modal{ max-width:560px; }
+
+  /* ── Toast — above page bottom instead of above tab bar ── */
+  #toast{
+    bottom:22px;
+    transform:translateX(-50%) translateY(10px);
+  }
+  #toast.on{ transform:translateX(-50%) translateY(0); }
+
+  /* ── Sync banner ── */
+  #sync-banner{ margin-left:0; margin-right:0; }
 }
 
 /* ═══ RECAP DATE PICKER & PRINT ════════════════════════════ */
@@ -1483,7 +1557,7 @@ function renderStock() {
     var pct = +s.seuil > 0 ? Math.min(100, (+s.stock / (+s.seuil * 3)) * 100) : 80;
     return '<div class="sk"><div class="sk-bar" style="background:' + col + '"></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
-        '<div><div class="sk-nom">' + s.nom + '</div><div class="sk-cat">' + (s.categorie||'—') + '</div></div>' +
+        '<div><div class="sk-nom">' + s.nom + '</div><div class="sk-cat">' + (s.categorie||'-') + '</div></div>' +
         '<span class="badge ' + cls + '">' + lbl + '</span></div>' +
       '<div><span class="sk-qty" style="color:' + col + '">' + s.stock + '</span><span class="sk-unit">' + s.unite + '</span></div>' +
       '<div class="prog"><div class="prog-fill" style="width:' + pct + '%;background:' + col + '"></div></div>' +
@@ -1520,7 +1594,7 @@ function renderProduits() {
     var cls = stk === 0 ? 'bd-r' : stk <= +p.seuil ? 'bd-y' : 'bd-g';
     return '<tr>' +
       '<td style="font-weight:600;color:var(--text-h)">' + p.nom + '</td>' +
-      '<td class="tm">' + (p.categorie||'—') + '</td>' +
+      '<td class="tm">' + (p.categorie||'-') + '</td>' +
       '<td><span class="badge ' + cls + '" style="font-family:var(--mono)">' + stk + '</span></td>' +
       '<td class="tm" style="font-family:var(--mono)">' + p.seuil + '</td>' +
       '<td><div style="display:flex;gap:4px">' +
@@ -1634,8 +1708,8 @@ function renderRecap() {
         '<td style="font-weight:600;color:var(--text-h)">' + m.produit_nom + '</td>' +
         '<td><span class="badge ' + (isE?'bd-g':'bd-r') + '" style="padding:1px 6px;font-size:.62rem">' + m.type + '</span></td>' +
         '<td style="color:' + (isE?'var(--emerald)':'var(--rose)') + ';font-weight:600;font-family:var(--mono)">' + (isE?'＋':'−') + m.quantite + '</td>' +
-        '<td class="tm">' + (m.motif||'—') + '</td>' +
-        '<td class="tm">' + (m.operateur||'—') + '</td>' +
+        '<td class="tm">' + (m.motif||'-') + '</td>' +
+        '<td class="tm">' + (m.operateur||'-') + '</td>' +
         '</tr>';
     }).join('') : '<tr><td colspan="6"><div class="empty">Aucun mouvement sur la période</div></td></tr>';
     document.getElementById('r-mvt-card').style.display = mvts.length ? '' : 'none';
@@ -1708,21 +1782,28 @@ var AT_HEAD={fillColor:[79,70,229],textColor:255,fontStyle:'bold',fontSize:7};
 var AT_ALT ={fillColor:[248,250,252]};
 
 /* ── Shared: compute opening & closing stock for a period ──
-   Opening = closing - net movements of the period
-   Closing = current live stock (snapshot)
+   ouverture = cloture - net mouvements de la periode
+   cloture   = stock actuel (snapshot)
+   mvtsFiltered = already-filtered movements (from recap._mouvements)
+                  OR null to filter from S.mouvements by date
 ─────────────────────────────────────────────────────────── */
-function _stockOC(depuis, jusqua) {
-  var cloture   = S.stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
-  var mvts = S.mouvements.filter(function(m){
-    if(!m.horodatage) return false;
-    if(depuis && m.horodatage < depuis) return false;
-    if(jusqua && m.horodatage > jusqua) return false;
-    return true;
-  });
-  var netPeriode = mvts.reduce(function(sum,m){
+function _stockOC(depuis, jusqua, mvtsFiltered) {
+  var cloture = S.stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
+  var mvts;
+  if (mvtsFiltered) {
+    mvts = mvtsFiltered;
+  } else {
+    mvts = S.mouvements.filter(function(m){
+      if(!m.horodatage) return false;
+      if(depuis && m.horodatage < depuis) return false;
+      if(jusqua && m.horodatage > jusqua) return false;
+      return true;
+    });
+  }
+  var net = mvts.reduce(function(sum,m){
     return sum + (m.type==='ENTREE' ? +(m.quantite||0) : -(+(m.quantite||0)));
   },0);
-  return { ouverture: cloture - netPeriode, cloture: cloture };
+  return { ouverture: cloture - net, cloture: cloture };
 }
 
 /* ═══ PDF STOCK ════════════════════════════════════════════ */
@@ -1750,10 +1831,10 @@ function pdfStock() {
   ]);
   ctx.doc.autoTable({
     startY:ctx.y, margin:{left:12,right:12},
-    head:[['Produit','Catégorie','Unité','Stock','Seuil','Statut']],
+    head:[['Produit','Categorie','Unite','Stock','Seuil','Statut']],
     body:stocks.map(function(s){
       var isR=+s.stock===0, isA=!isR&&+s.stock<=+s.seuil;
-      return [s.nom,s.categorie||'—',s.unite,s.stock,s.seuil,isR?'RUPTURE':isA?'ALERTE':'OK'];
+      return [s.nom,s.categorie||'-',s.unite,s.stock,s.seuil,isR?'RUPTURE':isA?'ALERTE':'OK'];
     }),
     styles:{fontSize:8,cellPadding:3},
     headStyles:AT_HEAD, alternateRowStyles:AT_ALT,
@@ -1779,26 +1860,25 @@ function pdfRecap() {
     var df=document.getElementById('date-from').value, dt=document.getElementById('date-to').value;
     if(df&&dt)lbl='Du '+df.split('-').reverse().join('/')+' au '+dt.split('-').reverse().join('/');
   }
-  var ctx=_newDoc('Récapitulatif · '+lbl,'Rapport de mouvements');
+  var ctx=_newDoc('Recapitulatif · '+lbl,'Rapport de mouvements');
   var bal=(r.entrees||0)-(r.sorties||0);
-  /* Compute opening/closing for the selected period */
-  var periodDebut = r.depuis || null;
-  var ocR = _stockOC(periodDebut, null);
+  /* Use already-filtered movements for accurate opening/closing */
+  var ocR = _stockOC(null, null, r._mouvements||[]);
   _kpiRow(ctx,[
-    {label:'Ouverture période', value:ocR.ouverture, color:[100,116,139]},
-    {label:'Entrées',           value:'+'+(r.entrees||0), color:[5,150,105]},
-    {label:'Sorties',           value:'−'+(r.sorties||0), color:[225,29,72]},
-    {label:'Balance',           value:(bal>=0?'+':'')+bal, color:bal>=0?[5,150,105]:[225,29,72]},
-    {label:'Clôture période',   value:ocR.cloture,   color:[79,70,229]}
+    {label:'Ouverture periode', value:ocR.ouverture,          color:[100,116,139]},
+    {label:'Entrees',           value:'+'+(r.entrees||0),     color:[5,150,105]},
+    {label:'Sorties',           value:'-'+(r.sorties||0),     color:[225,29,72]},
+    {label:'Balance',           value:(bal>=0?'+':'')+bal,    color:bal>=0?[5,150,105]:[225,29,72]},
+    {label:'Cloture periode',   value:ocR.cloture,            color:[79,70,229]}
   ]);
   var pp=r.par_produit||{};
   if(Object.keys(pp).length){
     ctx.doc.autoTable({
       startY:ctx.y, margin:{left:12,right:12},
-      head:[['Produit','Entrées','Sorties','Balance','Mouv.']],
+      head:[['Produit','Entrees','Sorties','Balance','Mouv.']],
       body:Object.keys(pp).map(function(n){
         var d=pp[n],b=d.entrees-d.sorties;
-        return[n,'+'+d.entrees,'−'+d.sorties,(b>=0?'+':'')+b,d.nb];
+        return[n,'+'+d.entrees,'-'+d.sorties,(b>=0?'+':'')+b,d.nb];
       }),
       styles:{fontSize:8,cellPadding:3},
       headStyles:AT_HEAD, alternateRowStyles:AT_ALT,
@@ -1810,9 +1890,9 @@ function pdfRecap() {
   if(mvts.length){
     ctx.doc.autoTable({
       startY:ctx.y, margin:{left:12,right:12},
-      head:[['Date','Produit','Type','Qté','Motif','Opérateur']],
+      head:[['Date','Produit','Type','Qte','Motif','Operateur']],
       body:mvts.map(function(m){
-        return[fmtDShort(m.horodatage),m.produit_nom,m.type,(m.type==='ENTREE'?'+':'−')+m.quantite,m.motif||'—',m.operateur||'—'];
+        return[fmtDShort(m.horodatage),m.produit_nom,m.type,(m.type==='ENTREE'?'+':'-')+m.quantite,m.motif||'-',m.operateur||'-'];
       }),
       styles:{fontSize:7.5,cellPadding:2.5},
       headStyles:AT_HEAD, alternateRowStyles:AT_ALT,
@@ -1837,7 +1917,7 @@ function pdfProduits() {
     var s=S.stocks.find(function(x){return x.id===p.id;}),stk=s?+s.stock:0,seuil=+p.seuil||0;
     var isR=stk===0,isA=!isR&&stk<=seuil;
     if(isR)rupt++;else if(isA)ale++;else ok++;
-    return[p.nom,p.categorie||'—',p.unite||'—',stk,seuil,isR?'RUPTURE':isA?'ALERTE':'OK',p.description||'—'];
+    return[p.nom,p.categorie||'-',p.unite||'-',stk,seuil,isR?'RUPTURE':isA?'ALERTE':'OK',p.description||'-'];
   });
   var ctx=_newDoc('Fiche produits','Liste des produits');
   _kpiRow(ctx,[
@@ -1848,7 +1928,7 @@ function pdfProduits() {
   ]);
   ctx.doc.autoTable({
     startY:ctx.y, margin:{left:12,right:12},
-    head:[['Nom','Catégorie','Unité','Stock','Seuil','Statut','Description']],
+    head:[['Nom','Categorie','Unite','Stock','Seuil','Statut','Description']],
     body:rows,
     styles:{fontSize:7.5,cellPadding:2.5},
     headStyles:AT_HEAD, alternateRowStyles:AT_ALT,
