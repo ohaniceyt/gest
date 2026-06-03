@@ -866,7 +866,7 @@ canvas{display:block;width:100%}
         </div>
         <div class="card">
           <div class="tw"><table>
-            <thead><tr><th>Nom</th><th>Cat.</th><th>Stock</th><th>Seuil</th><th></th></tr></thead>
+            <thead><tr><th>Nom</th><th>Cat.</th><th>Unité</th><th>Stock</th><th>Seuil</th><th>Prix unit.</th><th>Valeur</th><th></th></tr></thead>
             <tbody id="prod-body"></tbody>
           </table></div>
         </div>
@@ -960,6 +960,7 @@ canvas{display:block;width:100%}
         <div class="f"><label>Stock initial</label><input type="number" id="pr-stock" value="0" min="0" inputmode="numeric"></div>
         <div class="f"><label>Seuil alerte</label><input type="number" id="pr-seuil" value="10" min="0" inputmode="numeric"></div>
       </div>
+      <div class="f"><label>Prix unitaire</label><input type="number" id="pr-prix" value="0" min="0" step="0.01" inputmode="decimal" placeholder="0"></div>
       <div class="f"><label>Description</label><textarea id="pr-desc" rows="2" placeholder="Optionnel…"></textarea></div>
       <input type="hidden" id="pr-id">
       <div id="pr-err" class="errbar"></div>
@@ -1492,14 +1493,20 @@ function sc(label, val, sub, c) {
     '<div class="sc-sub">' + sub + '</div></div>';
 }
 
+function fmtCur(v) {
+  if (!v && v !== 0) return '—';
+  return Number(v).toLocaleString('fr-FR', {minimumFractionDigits:0, maximumFractionDigits:0}) + ' FCFA';
+}
+
 function renderDashboard() {
   var al = S.stocks.filter(function(s) { return +s.stock <= +s.seuil; });
   var ru = S.stocks.filter(function(s) { return +s.stock === 0; });
+  var valTotale = S.stocks.reduce(function(sum,s){ return sum + (+s.valeur||0); }, 0);
   document.getElementById('d-stats').innerHTML =
     sc('Produits',   S.stocks.length,    'références', 'ca') +
+    sc('Valeur stock', fmtCur(valTotale),'monétaire',  'cg') +
     sc('Alertes',    al.length,          'sous seuil', 'cy') +
-    sc('Ruptures',   ru.length,          'à zéro',     'cr') +
-    sc('Mouvements', S.mouvements.length,'total',      'cg');
+    sc('Ruptures',   ru.length,          'à zéro',     'cr');
 
   var ael = document.getElementById('d-alerts');
   if (!al.length) {
@@ -1535,14 +1542,17 @@ function renderStock() {
   }
   /* Total quantity across all products */
   var totalUnites = S.stocks.reduce(function(sum, s) { return sum + (+s.stock || 0); }, 0);
-  /* Opening/closing for today */
+  var totalValeur = S.stocks.reduce(function(sum, s) { return sum + (+s.valeur || 0); }, 0);
   var todayStart = new Date(); todayStart.setHours(0,0,0,0);
   var oc = _stockOC(todayStart.toISOString(), null);
   var totalBanner =
     '<div style="grid-column:1/-1;background:var(--indigo-50);border:1px solid var(--indigo-200);border-radius:var(--r-md);padding:12px 16px;margin-bottom:2px">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
         '<span style="font-size:.78rem;font-weight:600;color:var(--indigo-700)">📦 Stock total cumulé</span>' +
-        '<span style="font-size:1.4rem;font-weight:800;color:var(--indigo);letter-spacing:-.03em">' + totalUnites.toLocaleString('fr-FR') + ' <span style="font-size:.8rem;font-weight:500;color:var(--indigo-700)">unités</span></span>' +
+        '<div style="text-align:right">' +
+          '<div style="font-size:1.4rem;font-weight:800;color:var(--indigo);letter-spacing:-.03em">' + totalUnites.toLocaleString('fr-FR') + ' <span style="font-size:.8rem;font-weight:500;color:var(--indigo-700)">unités</span></div>' +
+          '<div style="font-size:.82rem;font-weight:700;color:var(--emerald-700)">💰 ' + fmtCur(totalValeur) + '</div>' +
+        '</div>' +
       '</div>' +
       '<div style="display:flex;gap:16px;font-size:.75rem;color:var(--indigo-700)">' +
         '<span>📂 <b>Ouverture (aujourd\'hui)</b> : ' + oc.ouverture.toLocaleString('fr-FR') + ' unités</span>' +
@@ -1555,13 +1565,17 @@ function renderStock() {
     var cls = isR ? 'bd-r' : isA ? 'bd-y' : 'bd-g';
     var lbl = isR ? 'Rupture' : isA ? 'Alerte' : 'OK';
     var pct = +s.seuil > 0 ? Math.min(100, (+s.stock / (+s.seuil * 3)) * 100) : 80;
+    var valeur = +s.prix_unitaire > 0
+      ? '<div style="font-size:.7rem;color:var(--emerald-700);font-weight:600;margin-top:4px">💰 ' + fmtCur(+s.stock * +s.prix_unitaire) + '</div>'
+      : '';
     return '<div class="sk"><div class="sk-bar" style="background:' + col + '"></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
         '<div><div class="sk-nom">' + s.nom + '</div><div class="sk-cat">' + (s.categorie||'-') + '</div></div>' +
         '<span class="badge ' + cls + '">' + lbl + '</span></div>' +
       '<div><span class="sk-qty" style="color:' + col + '">' + s.stock + '</span><span class="sk-unit">' + s.unite + '</span></div>' +
+      valeur +
       '<div class="prog"><div class="prog-fill" style="width:' + pct + '%;background:' + col + '"></div></div>' +
-      '<div class="sk-seuil">Seuil : ' + s.seuil + '</div></div>';
+      '<div class="sk-seuil">Seuil : ' + s.seuil + (s.prix_unitaire > 0 ? ' · PU : ' + fmtCur(s.prix_unitaire) : '') + '</div></div>';
   }).join('');
 }
 
@@ -1585,18 +1599,24 @@ function renderMouvements() {
 function renderProduits() {
   var el = document.getElementById('prod-body');
   if (!S.produits.length) {
-    el.innerHTML = '<tr><td colspan="5"><div class="empty">Aucun produit.</div></td></tr>';
+    el.innerHTML = '<tr><td colspan="8"><div class="empty">Aucun produit.</div></td></tr>';
     return;
   }
   el.innerHTML = S.produits.map(function(p) {
-    var s   = S.stocks.find(function(x) { return x.id === p.id; });
-    var stk = s ? +s.stock : 0;
-    var cls = stk === 0 ? 'bd-r' : stk <= +p.seuil ? 'bd-y' : 'bd-g';
+    var s    = S.stocks.find(function(x) { return x.id === p.id; });
+    var stk  = s ? +s.stock : 0;
+    var cls  = stk === 0 ? 'bd-r' : stk <= +p.seuil ? 'bd-y' : 'bd-g';
+    var prix = +p.prix_unitaire || 0;
+    var val  = prix > 0 ? fmtCur(stk * prix) : '—';
+    var pu   = prix > 0 ? fmtCur(prix) : '—';
     return '<tr>' +
       '<td style="font-weight:600;color:var(--text-h)">' + p.nom + '</td>' +
-      '<td class="tm">' + (p.categorie||'-') + '</td>' +
+      '<td class="tm">' + (p.categorie||'—') + '</td>' +
+      '<td class="tm">' + p.unite + '</td>' +
       '<td><span class="badge ' + cls + '" style="font-family:var(--mono)">' + stk + '</span></td>' +
       '<td class="tm" style="font-family:var(--mono)">' + p.seuil + '</td>' +
+      '<td class="tm" style="font-family:var(--mono)">' + pu + '</td>' +
+      '<td style="font-size:.78rem;font-weight:600;color:var(--emerald);font-family:var(--mono)">' + val + '</td>' +
       '<td><div style="display:flex;gap:4px">' +
         '<button class="btn btn-o btn-sm btn-ic" onclick="editProd(\'' + p.id + '\')" title="Modifier">✎</button>' +
         '<button class="btn btn-r btn-sm btn-ic" onclick="deleteProd(\'' + p.id + '\')" title="Supprimer">✕</button>' +
@@ -1809,38 +1829,42 @@ function _stockOC(depuis, jusqua, mvtsFiltered) {
 /* ═══ PDF STOCK ════════════════════════════════════════════ */
 function pdfStock() {
   var stocks=S.stocks;
-  if(!stocks.length){toast('Aucun stock à exporter');return;}
-  toast('Génération du PDF…');
+  if(!stocks.length){toast('Aucun stock a exporter');return;}
+  toast('Generation du PDF...');
   var rupt=stocks.filter(function(s){return +s.stock===0;});
   var ale =stocks.filter(function(s){return +s.stock>0&&+s.stock<=+s.seuil;});
   var ok  =stocks.filter(function(s){return +s.stock>+s.seuil;});
   var totalU = stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
+  var totalV = stocks.reduce(function(sum,s){return sum+(+s.valeur||0);},0);
   var todayStart = new Date(); todayStart.setHours(0,0,0,0);
   var oc = _stockOC(todayStart.toISOString(), null);
-  var ctx=_newDoc('État du stock','Stock en temps réel');
+  var ctx=_newDoc('Etat du stock','Stock en temps reel');
   _kpiRow(ctx,[
-    {label:'Produits',       value:stocks.length, color:[30,41,59]},
-    {label:'Total unités',   value:totalU,        color:[79,70,229]},
-    {label:'OK',             value:ok.length,     color:[5,150,105]},
-    {label:'Alertes',        value:ale.length,    color:[217,119,6]},
-    {label:'Ruptures',       value:rupt.length,   color:[225,29,72]}
+    {label:'Produits',     value:stocks.length,                                    color:[30,41,59]},
+    {label:'Total unites', value:totalU,                                           color:[79,70,229]},
+    {label:'Valeur totale',value:Number(totalV).toLocaleString('fr-FR')+' F',     color:[5,150,105]},
+    {label:'Alertes',      value:ale.length,                                       color:[217,119,6]},
+    {label:'Ruptures',     value:rupt.length,                                      color:[225,29,72]}
   ]);
   _kpiRow(ctx,[
-    {label:'Ouverture (aujourd\'hui)', value:oc.ouverture, color:[100,116,139]},
-    {label:'Clôture (maintenant)',     value:oc.cloture,   color:[79,70,229]}
+    {label:'Ouverture (auj.)', value:oc.ouverture, color:[100,116,139]},
+    {label:'Cloture',          value:oc.cloture,   color:[79,70,229]}
   ]);
   ctx.doc.autoTable({
     startY:ctx.y, margin:{left:12,right:12},
-    head:[['Produit','Categorie','Unite','Stock','Seuil','Statut']],
+    head:[['Produit','Categorie','Unite','Prix unit.','Stock','Valeur','Seuil','Statut']],
     body:stocks.map(function(s){
       var isR=+s.stock===0, isA=!isR&&+s.stock<=+s.seuil;
-      return [s.nom,s.categorie||'-',s.unite,s.stock,s.seuil,isR?'RUPTURE':isA?'ALERTE':'OK'];
+      var prix=+s.prix_unitaire||0;
+      var val=prix>0?Number(+s.stock*prix).toLocaleString('fr-FR')+' F':'-';
+      var pu=prix>0?Number(prix).toLocaleString('fr-FR')+' F':'-';
+      return [s.nom,s.categorie||'-',s.unite,pu,s.stock,val,s.seuil,isR?'RUPTURE':isA?'ALERTE':'OK'];
     }),
-    styles:{fontSize:8,cellPadding:3},
+    styles:{fontSize:7,cellPadding:2.5},
     headStyles:AT_HEAD, alternateRowStyles:AT_ALT,
-    columnStyles:{3:{halign:'right',fontStyle:'bold'},4:{halign:'right'},5:{halign:'center'}},
+    columnStyles:{3:{halign:'right'},4:{halign:'right',fontStyle:'bold'},5:{halign:'right'},6:{halign:'right'},7:{halign:'center'}},
     didDrawCell:function(d){
-      if(d.column.index===5&&d.section==='body'){
+      if(d.column.index===7&&d.section==='body'){
         var v=d.cell.raw;
         d.cell.styles.textColor=v==='RUPTURE'?[225,29,72]:v==='ALERTE'?[217,119,6]:[5,150,105];
       }
@@ -1910,31 +1934,37 @@ function pdfRecap() {
 /* ═══ PDF PRODUITS ═════════════════════════════════════════ */
 function pdfProduits() {
   var produits=S.produits;
-  if(!produits.length){toast('Aucun produit à exporter');return;}
-  toast('Génération du PDF…');
+  if(!produits.length){toast('Aucun produit a exporter');return;}
+  toast('Generation du PDF...');
   var rupt=0,ale=0,ok=0;
+  var valeurTotale=0;
   var rows=produits.map(function(p){
     var s=S.stocks.find(function(x){return x.id===p.id;}),stk=s?+s.stock:0,seuil=+p.seuil||0;
     var isR=stk===0,isA=!isR&&stk<=seuil;
     if(isR)rupt++;else if(isA)ale++;else ok++;
-    return[p.nom,p.categorie||'-',p.unite||'-',stk,seuil,isR?'RUPTURE':isA?'ALERTE':'OK',p.description||'-'];
+    var prix=+p.prix_unitaire||0;
+    var val=prix>0?stk*prix:0;
+    valeurTotale+=val;
+    var puStr=prix>0?Number(prix).toLocaleString('fr-FR')+' F':'-';
+    var valStr=prix>0?Number(val).toLocaleString('fr-FR')+' F':'-';
+    return[p.nom,p.categorie||'-',p.unite||'-',stk,seuil,puStr,valStr,isR?'RUPTURE':isA?'ALERTE':'OK'];
   });
   var ctx=_newDoc('Fiche produits','Liste des produits');
   _kpiRow(ctx,[
-    {label:'Total',    value:produits.length,color:[30,41,59]},
-    {label:'OK',       value:ok,             color:[5,150,105]},
-    {label:'Alertes',  value:ale,            color:[217,119,6]},
-    {label:'Ruptures', value:rupt,           color:[225,29,72]}
+    {label:'Total',        value:produits.length,                                       color:[30,41,59]},
+    {label:'Valeur totale',value:Number(valeurTotale).toLocaleString('fr-FR')+' F',    color:[5,150,105]},
+    {label:'Alertes',      value:ale,                                                   color:[217,119,6]},
+    {label:'Ruptures',     value:rupt,                                                  color:[225,29,72]}
   ]);
   ctx.doc.autoTable({
     startY:ctx.y, margin:{left:12,right:12},
-    head:[['Nom','Categorie','Unite','Stock','Seuil','Statut','Description']],
+    head:[['Nom','Categorie','Unite','Stock','Seuil','Prix unit.','Valeur','Statut']],
     body:rows,
-    styles:{fontSize:7.5,cellPadding:2.5},
+    styles:{fontSize:7,cellPadding:2.5},
     headStyles:AT_HEAD, alternateRowStyles:AT_ALT,
-    columnStyles:{3:{halign:'right',fontStyle:'bold'},4:{halign:'right'},5:{halign:'center'}},
+    columnStyles:{3:{halign:'right',fontStyle:'bold'},4:{halign:'right'},5:{halign:'right'},6:{halign:'right'},7:{halign:'center'}},
     didDrawCell:function(d){
-      if(d.column.index===5&&d.section==='body'){
+      if(d.column.index===7&&d.section==='body'){
         var v=d.cell.raw;
         d.cell.styles.textColor=v==='RUPTURE'?[225,29,72]:v==='ALERTE'?[217,119,6]:[5,150,105];
       }
@@ -1991,7 +2021,9 @@ function whatsappProduits() {
       var s=S.stocks.find(function(x){return x.id===p.id;}),stk=s?+s.stock:0,seuil=+p.seuil||0;
       var isR=stk===0,isA=!isR&&stk<=seuil;
       if(isR)rupt++;else if(isA)ale++;else ok++;
-      lines.push((isR?'🔴':isA?'🟡':'🟢')+' '+p.nom+' : *'+stk+' '+(p.unite||'u')+'* (seuil '+seuil+')');
+      var prixWA = +p.prix_unitaire||0;
+      var valWA  = prixWA>0?' — '+Number(stk*prixWA).toLocaleString('fr-FR')+' FCFA':'';
+      lines.push((isR?'🔴':isA?'🟡':'🟢')+' '+p.nom+' : *'+stk+' '+(p.unite||'u')+'*'+valWA+' (seuil '+seuil+')');
     });
   });
   lines.push('\n─────────────────────────');
@@ -2011,12 +2043,14 @@ function exportWhatsApp() {
   });
 
   var totalUnites = stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
+  var totalValeur = stocks.reduce(function(sum,s){return sum+(+s.valeur||0);},0);
   var todayStart2 = new Date(); todayStart2.setHours(0,0,0,0);
   var ocW = _stockOC(todayStart2.toISOString(), null);
   var lines = [
     '📦 *ÉTAT DU STOCK — StockFlow*',
     '🕐 ' + now,
     '📊 Stock total : *' + totalUnites.toLocaleString('fr-FR') + ' unités*',
+    '💰 Valeur totale : *' + Number(totalValeur).toLocaleString('fr-FR') + ' FCFA*',
     '📂 Ouverture (auj.) : *' + ocW.ouverture.toLocaleString('fr-FR') + ' unités*',
     '📁 Clôture : *' + ocW.cloture.toLocaleString('fr-FR') + ' unités*',
     '─────────────────────────'
@@ -2254,6 +2288,7 @@ function openProd(d) {
   document.getElementById('pr-unite').value = d&&d.unite || 'kg';
   document.getElementById('pr-stock').value = d&&d.stock || 0;
   document.getElementById('pr-seuil').value = d&&d.seuil || 10;
+  document.getElementById('pr-prix').value  = d&&d.prix  || 0;
   document.getElementById('pr-desc').value  = d&&d.desc  || '';
   document.getElementById('pr-id').value    = d&&d.id    || '';
   document.getElementById('pr-err').classList.remove('on');
@@ -2262,7 +2297,7 @@ function openProd(d) {
 function editProd(id) {
   var p = S.produits.find(function(x) { return x.id===id; }); if (!p) return;
   var s = S.stocks.find(function(x) { return x.id===id; });
-  openProd({id:p.id, nom:p.nom, cat:p.categorie, unite:p.unite, stock:s?s.stock:0, seuil:p.seuil, desc:p.description});
+  openProd({id:p.id, nom:p.nom, cat:p.categorie, unite:p.unite, stock:s?s.stock:0, seuil:p.seuil, prix:p.prix_unitaire||0, desc:p.description});
 }
 function saveProd() {
   var nom = document.getElementById('pr-nom').value.trim();
@@ -2271,13 +2306,14 @@ function saveProd() {
   err.classList.remove('on');
   var editId  = document.getElementById('pr-id').value;
   var payload = {
-    action:       editId ? 'editProduit' : 'addProduit',
-    nom:          nom,
-    categorie:    document.getElementById('pr-cat').value.trim(),
-    unite:        document.getElementById('pr-unite').value.trim() || 'unité',
-    stock_initial:+document.getElementById('pr-stock').value || 0,
-    seuil:        +document.getElementById('pr-seuil').value || 0,
-    description:  document.getElementById('pr-desc').value.trim()
+    action:         editId ? 'editProduit' : 'addProduit',
+    nom:            nom,
+    categorie:      document.getElementById('pr-cat').value.trim(),
+    unite:          document.getElementById('pr-unite').value.trim() || 'unité',
+    stock_initial:  +document.getElementById('pr-stock').value || 0,
+    seuil:          +document.getElementById('pr-seuil').value || 0,
+    prix_unitaire:  +document.getElementById('pr-prix').value  || 0,
+    description:    document.getElementById('pr-desc').value.trim()
   };
   if (editId) payload.id = editId;
   if (IS_DEMO) { toast(editId?'Produit mis à jour ✓':'Produit créé ✓'); closeOv('ov-prod'); return; }
