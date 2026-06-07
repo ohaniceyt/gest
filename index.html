@@ -1322,11 +1322,11 @@ function launchApp() {
 
 /* ═══ DEMO DATA ════════════════════════════════════════════ */
 var DEMO_S = [
-  {id:'P1',nom:'Farine T55',    categorie:'Épicerie',  unite:'kg',seuil:50, stock:150},
-  {id:'P2',nom:'Sucre Blanc',   categorie:'Épicerie',  unite:'kg',seuil:20, stock:8},
-  {id:'P3',nom:'Huile Tournesol',categorie:'Épicerie', unite:'L', seuil:10, stock:45},
-  {id:'P4',nom:'Sel Fin',       categorie:'Condiments',unite:'kg',seuil:5,  stock:0},
-  {id:'P5',nom:'Levure',        categorie:'Épicerie',  unite:'g', seuil:500,stock:2500}
+  {id:'P1',nom:'Farine T55',    categorie:'Épicerie',  unite:'kg',seuil:50, stock:150, prix_unitaire:1200,  valeur:180000},
+  {id:'P2',nom:'Sucre Blanc',   categorie:'Épicerie',  unite:'kg',seuil:20, stock:8,   prix_unitaire:800,   valeur:6400},
+  {id:'P3',nom:'Huile Tournesol',categorie:'Épicerie', unite:'L', seuil:10, stock:45,  prix_unitaire:1500,  valeur:67500},
+  {id:'P4',nom:'Sel Fin',       categorie:'Condiments',unite:'kg',seuil:5,  stock:0,   prix_unitaire:400,   valeur:0},
+  {id:'P5',nom:'Levure',        categorie:'Épicerie',  unite:'g', seuil:500,stock:2500, prix_unitaire:5,    valeur:12500}
 ];
 var DEMO_P = DEMO_S.map(function(s){
   return {id:s.id,nom:s.nom,categorie:s.categorie,unite:s.unite,seuil:s.seuil,description:''};
@@ -1384,6 +1384,11 @@ function doRefresh() {
   if (!navigator.onLine) {
     /* Offline: show cached data, compute recap locally */
     cacheLoad();
+    /* Recompute valeur in case cache didn't store it */
+    S.stocks = S.stocks.map(function(s) {
+      if (!s.valeur) s.valeur = (+s.stock||0) * (+s.prix_unitaire||0);
+      return s;
+    });
     if (S.mouvements.length) {
       var today = new Date().toISOString().slice(0,10);
       var maps  = {jour:today+'T00:00:00', semaine:null, mois:null};
@@ -1410,7 +1415,15 @@ function doRefresh() {
     api({action:'listMouvements'}),
     api({action:'recap', periode:S.periode})
   ]).then(function(rs) {
-    if (rs[0].status==='fulfilled' && rs[0].value) S.stocks     = rs[0].value.data || [];
+    if (rs[0].status==='fulfilled' && rs[0].value) {
+      S.stocks = (rs[0].value.data || []).map(function(s) {
+        /* Ensure valeur is always computed even if API doesn't return it */
+        if (s.valeur === undefined || s.valeur === null) {
+          s.valeur = (+s.stock || 0) * (+s.prix_unitaire || 0);
+        }
+        return s;
+      });
+    }
     if (rs[1].status==='fulfilled' && rs[1].value) S.produits   = rs[1].value.data || [];
     if (rs[2].status==='fulfilled' && rs[2].value) S.mouvements = (rs[2].value.data || []).slice(0, 200);
     if (rs[3].status==='fulfilled' && rs[3].value) S.recap      = rs[3].value.data || null;
