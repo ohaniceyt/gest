@@ -706,6 +706,36 @@ canvas{display:block;width:100%}
 .user-meta{font-size:.72rem;color:var(--text-muted);margin-top:2px}
 .user-inactive{opacity:.5}
 
+/* ═══ NOTIFICATION BANNER ══════════════════════════════════ */
+#notif-banner{
+  display:none;
+  background:var(--indigo-50);border:1px solid var(--indigo-200);
+  border-radius:var(--r-md);padding:11px 14px;margin-bottom:12px;
+  flex-direction:row;align-items:center;gap:12px;
+}
+#notif-banner.on{display:flex}
+.nb-text{flex:1;font-size:.78rem;font-weight:500;color:var(--indigo-700);line-height:1.4}
+.nb-close{background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:.9rem;padding:4px}
+
+/* Alerte WA rupture toast */
+#rupture-toast{
+  position:fixed;bottom:calc(var(--tabnav-h) + var(--sab) + 80px);
+  left:50%;transform:translateX(-50%) translateY(20px);
+  z-index:998;
+  background:var(--rose-50);border:1px solid var(--rose-200);
+  border-radius:var(--r-lg);padding:14px 16px;
+  box-shadow:var(--shadow-lg);
+  opacity:0;transition:opacity .25s var(--ease),transform .25s var(--ease);
+  pointer-events:none;max-width:calc(100vw - 32px);
+  display:flex;flex-direction:column;gap:8px;
+}
+#rupture-toast.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.rt-title{font-size:.82rem;font-weight:700;color:var(--rose-700)}
+.rt-body{font-size:.78rem;color:var(--rose-700);line-height:1.5}
+.rt-actions{display:flex;gap:8px;margin-top:4px}
+.rt-wa{background:#25d366;color:#fff;border:none;border-radius:var(--r-sm);padding:7px 14px;font-size:.78rem;font-weight:600;cursor:pointer;font-family:var(--font)}
+.rt-dismiss{background:var(--rose-100);color:var(--rose-700);border:1px solid var(--rose-200);border-radius:var(--r-sm);padding:7px 12px;font-size:.78rem;font-weight:600;cursor:pointer;font-family:var(--font)}
+
 /* ═══ OFFLINE QUEUE UI ═════════════════════════════════════ */
 #sync-banner{
   display:none;
@@ -843,6 +873,13 @@ canvas{display:block;width:100%}
     </div>
     <div class="wrap">
       <div id="app-err" class="errbar"></div>
+
+      <!-- Notification permission banner -->
+      <div id="notif-banner">
+        <div class="nb-text">🔔 Activer les notifications pour être alerté des ruptures de stock</div>
+        <button class="btn btn-p btn-sm" onclick="requestNotifPermission()">Activer</button>
+        <button class="nb-close" onclick="dismissNotifBanner()">✕</button>
+      </div>
 
       <!-- OFFLINE SYNC BANNER -->
       <div id="sync-banner">
@@ -1489,24 +1526,23 @@ function pinSubmit() {
   document.getElementById('pin-error').textContent = '';
 
   if (IS_DEMO) {
-    /* Demo mode: any PIN works */
     sessSave({id:PIN_TARGET_USER.id, nom:PIN_TARGET_USER.nom, role:PIN_TARGET_USER.role});
     document.getElementById('pin-screen').classList.remove('on');
     document.getElementById('app').classList.add('on');
     applyRoleUI();
+    checkNotifBanner();
     doRefresh();
     return;
   }
 
   api({action:'login', pin:PIN_ENTRY, user_id:PIN_TARGET_USER.id}).then(function(r){
     if (r && r.ok && r.user) {
-      /* Trust the API — it verified the PIN against all users.
-         Accept if the returned user matches the one selected. */
       if (r.user.id === PIN_TARGET_USER.id) {
         sessSave(r.user);
         document.getElementById('pin-screen').classList.remove('on');
         document.getElementById('app').classList.add('on');
         applyRoleUI();
+        checkNotifBanner();
         doRefresh();
       } else {
         /* PIN is valid but belongs to a different user */
@@ -1711,6 +1747,7 @@ function launchApp() {
   if (SESSION) {
     document.getElementById('app').classList.add('on');
     applyRoleUI();
+    checkNotifBanner();
     doRefresh();
   } else {
     showPinScreen();
@@ -1806,6 +1843,8 @@ function doRefresh() {
     return;
   }
   setLoading(true); setErr('');
+  /* Snapshot current stocks to detect new ruptures after refresh */
+  var prevStocks = S.stocks.slice();
   Promise.allSettled([
     api({action:'getStocks'}),
     api({action:'listProduits'}),
@@ -1829,6 +1868,8 @@ function doRefresh() {
     /* Persist fresh data for offline use */
     cacheSave();
     updateQueueBadge();
+    /* Check for new ruptures and trigger alerts */
+    checkRuptures(prevStocks);
     renderAll();
   }).catch(function(e) { setErr(e.message); });
   setTimeout(function() { setLoading(false); }, 16000);
@@ -2532,6 +2573,166 @@ function exportWhatsApp() {
   window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank');
 }
 
+/* ═══════════════════════════════════════════════════════════
+   NOTIFICATION SYSTEM
+   Niveau 2 : Notification système native (API Notification)
+   Niveau 3 : Alerte WhatsApp automatique sur rupture
+═══════════════════════════════════════════════════════════ */
+
+var NOTIF_KEY     = 'sf_notif_v1';    /* localStorage: permission banner dismissed */
+var PREV_ALERT_KEY = 'sf_prev_alerts'; /* localStorage: previous alert state */
+var _ruptureAlerts = [];               /* current ruptures for WA send */
+var _ruptureToastTimer = null;
+
+/* ── Permission banner ──────────────────────────────────── */
+function checkNotifBanner() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') return;
+  if (Notification.permission === 'denied') return;
+  if (localStorage.getItem(NOTIF_KEY) === 'dismissed') return;
+  document.getElementById('notif-banner').classList.add('on');
+}
+
+function requestNotifPermission() {
+  if (!('Notification' in window)) { toast('Notifications non supportées sur ce navigateur'); return; }
+  Notification.requestPermission().then(function(result) {
+    document.getElementById('notif-banner').classList.remove('on');
+    if (result === 'granted') {
+      toast('Notifications activées ✓');
+      localStorage.removeItem(NOTIF_KEY);
+    } else {
+      localStorage.setItem(NOTIF_KEY, 'dismissed');
+    }
+  });
+}
+
+function dismissNotifBanner() {
+  document.getElementById('notif-banner').classList.remove('on');
+  localStorage.setItem(NOTIF_KEY, 'dismissed');
+}
+
+/* ── Detect new ruptures & trigger alerts ───────────────── */
+function checkRuptures(previousStocks) {
+  var ruptures  = [];
+  var alertes   = [];
+
+  S.stocks.forEach(function(s) {
+    var prevStock = null;
+    if (previousStocks) {
+      var prev = previousStocks.find(function(p){ return p.id === s.id; });
+      if (prev) prevStock = +prev.stock;
+    }
+
+    var isRupture = +s.stock === 0;
+    var isAlerte  = !isRupture && +s.stock <= +s.seuil;
+
+    /* Only alert if the situation just got worse (new rupture/alerte) */
+    var wasOk = prevStock === null || prevStock > +s.seuil;
+    var wasAlerte = prevStock !== null && prevStock > 0 && prevStock <= +s.seuil;
+
+    if (isRupture && (prevStock === null || prevStock > 0)) {
+      ruptures.push(s); /* nouveau passage en rupture */
+    } else if (isAlerte && wasOk) {
+      alertes.push(s); /* nouveau passage en alerte */
+    }
+  });
+
+  /* ── Notification système native ─────────────────────── */
+  if ((ruptures.length || alertes.length) && Notification && Notification.permission === 'granted') {
+    var title = ruptures.length
+      ? '🔴 ' + ruptures.length + ' rupture(s) de stock !'
+      : '🟡 ' + alertes.length + ' stock(s) sous le seuil';
+
+    var body = ruptures.map(function(s){ return s.nom + ' : RUPTURE'; })
+      .concat(alertes.map(function(s){ return s.nom + ' : ' + s.stock + ' ' + s.unite + ' (seuil ' + s.seuil + ')'; }))
+      .join('\n');
+
+    try {
+      new Notification(title, {
+        body:  body,
+        icon:  'icon-192.png',
+        badge: 'icon-192.png',
+        tag:   'stockflow-rupture', /* remplace la notif précédente */
+        renotify: true
+      });
+    } catch(ex) { /* Silently ignore if SW not registered */ }
+  }
+
+  /* ── Toast rupture + WA ──────────────────────────────── */
+  if (ruptures.length) {
+    _ruptureAlerts = ruptures;
+    showRuptureToast(ruptures);
+  }
+
+  /* ── Vibration (mobile) ──────────────────────────────── */
+  if ((ruptures.length || alertes.length) && navigator.vibrate) {
+    navigator.vibrate(ruptures.length ? [200,100,200,100,200] : [200,100,200]);
+  }
+}
+
+/* ── Rupture toast UI ───────────────────────────────────── */
+function showRuptureToast(ruptures) {
+  var body = ruptures.map(function(s){
+    return '• <b>' + s.nom + '</b> — stock à zéro';
+  }).join('<br>');
+  document.getElementById('rupture-toast-body').innerHTML = body;
+  document.getElementById('rupture-toast').classList.add('on');
+
+  /* Auto-dismiss after 12s */
+  if (_ruptureToastTimer) clearTimeout(_ruptureToastTimer);
+  _ruptureToastTimer = setTimeout(function() {
+    document.getElementById('rupture-toast').classList.remove('on');
+  }, 12000);
+}
+
+function dismissRuptureToast() {
+  document.getElementById('rupture-toast').classList.remove('on');
+  if (_ruptureToastTimer) clearTimeout(_ruptureToastTimer);
+}
+
+function sendRuptureWA() {
+  dismissRuptureToast();
+  var now = new Date().toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  var lines = [
+    '🔴 *ALERTE RUPTURE DE STOCK — StockFlow*',
+    '🕐 ' + now,
+    '─────────────────────────'
+  ];
+  _ruptureAlerts.forEach(function(s) {
+    lines.push('🔴 *' + s.nom + '* : RUPTURE (seuil : ' + s.seuil + ' ' + s.unite + ')');
+  });
+  lines.push('\n_Notification automatique StockFlow_');
+  window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank');
+}
+
+/* ── Check after movement: did stock drop below seuil? ─── */
+function checkMouvementRupture(produitId, stockApres) {
+  var s = S.stocks.find(function(x){ return x.id === produitId; });
+  if (!s) return;
+  var seuil = +s.seuil;
+
+  if (stockApres === 0) {
+    /* Rupture immédiate */
+    _ruptureAlerts = [Object.assign({}, s, {stock: stockApres})];
+    showRuptureToast(_ruptureAlerts);
+    if (Notification && Notification.permission === 'granted') {
+      try {
+        new Notification('🔴 Rupture de stock !', {
+          body:  s.nom + ' est en rupture de stock.',
+          icon:  'icon-192.png',
+          tag:   'stockflow-rupture',
+          renotify: true
+        });
+      } catch(ex) {}
+    }
+    if (navigator.vibrate) navigator.vibrate([200,100,200,100,200]);
+  } else if (stockApres <= seuil) {
+    /* Passage sous le seuil */
+    toast('⚠ ' + s.nom + ' : stock bas (' + stockApres + ' ' + s.unite + ')');
+    if (navigator.vibrate) navigator.vibrate([200,100,200]);
+  }
+}
+
 function renderAlertBadge() {
   var n  = S.stocks.filter(function(s) { return +s.stock <= +s.seuil; }).length;
   var el = document.getElementById('n-alert');
@@ -2585,6 +2786,10 @@ function saveMvt() {
       toast('Hors ligne — mouvement sauvegardé localement 📱');
     } else {
       toast(S.mvtType==='ENTREE' ? 'Entrée enregistrée ✓' : 'Sortie enregistrée ✓');
+      /* Check for rupture immediately on sortie */
+      if (S.mvtType==='SORTIE' && r && r.stock_apres !== undefined) {
+        checkMouvementRupture(pid, r.stock_apres);
+      }
       doRefresh();
     }
     closeOv('ov-mvt');
@@ -2854,6 +3059,16 @@ window.addEventListener('resize', function() {
   drawChart('ch-recap', chartData(S.recap));
 });
 </script>
+<!-- Rupture alert toast -->
+<div id="rupture-toast">
+  <div class="rt-title">🔴 Alerte rupture de stock</div>
+  <div class="rt-body" id="rupture-toast-body"></div>
+  <div class="rt-actions">
+    <button class="rt-wa" onclick="sendRuptureWA()">📤 Envoyer sur WhatsApp</button>
+    <button class="rt-dismiss" onclick="dismissRuptureToast()">Ignorer</button>
+  </div>
+</div>
+
 <!-- PRINT AREA — must be a direct child of body for @media print to work -->
 <div id="print-area"></div>
 
