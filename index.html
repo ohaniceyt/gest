@@ -15,6 +15,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+
 <!-- jsPDF for client-side PDF generation -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
@@ -706,6 +708,61 @@ canvas{display:block;width:100%}
 .user-meta{font-size:.72rem;color:var(--text-muted);margin-top:2px}
 .user-inactive{opacity:.5}
 
+/* ═══ SEARCH BAR ════════════════════════════════════════════ */
+.topbar-search{
+  flex:1;display:flex;align-items:center;
+  padding:0 12px;min-width:0;
+}
+.search-wrap{
+  display:flex;align-items:center;gap:8px;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:99px;padding:0 12px;
+  width:100%;max-width:400px;
+  transition:border-color var(--t1),box-shadow var(--t1);
+}
+.search-wrap:focus-within{
+  border-color:var(--indigo);
+  box-shadow:0 0 0 3px rgba(79,70,229,.1);
+  background:var(--surface);
+}
+.search-icon{font-size:.8rem;opacity:.5;flex-shrink:0}
+#search-input{
+  flex:1;border:none;background:transparent;
+  font-family:var(--font);font-size:.82rem;color:var(--text-h);
+  padding:7px 0;outline:none;min-width:0;
+  /* prevent iOS zoom */
+  font-size:16px;
+}
+#search-input::placeholder{color:var(--text-faint);font-size:.78rem}
+.search-clear{
+  background:none;border:none;color:var(--text-faint);
+  cursor:pointer;font-size:.8rem;padding:2px 4px;
+  border-radius:50%;flex-shrink:0;
+  transition:background var(--t1),color var(--t1);
+}
+.search-clear:active{background:var(--border);color:var(--text-h)}
+
+/* Search highlight */
+.search-hl{background:#fef9c3;border-radius:2px;padding:0 1px}
+
+/* Search results count */
+.search-count{
+  font-size:.72rem;color:var(--text-muted);
+  padding:4px 16px 0;font-weight:500;
+}
+
+/* Hide topbar-search on very small screens, show search icon instead */
+@media(max-width:380px){
+  .topbar-search{display:none}
+}
+
+/* Desktop: expand search bar */
+@media(min-width:768px){
+  .topbar-search{padding:0 16px}
+  .search-wrap{max-width:480px}
+  #search-input{font-size:.84rem}
+}
+
 /* ═══ NOTIFICATION BANNER ══════════════════════════════════ */
 #notif-banner{
   display:none;
@@ -855,6 +912,15 @@ canvas{display:block;width:100%}
       <div class="topbar-logo-icon">📦</div>
       <span class="topbar-title">StockFlow</span>
     </div>
+    <!-- Search bar — center -->
+    <div class="topbar-search" id="topbar-search">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Rechercher produit, mouvement…"
+               oninput="onSearch(this.value)" autocomplete="off" autocorrect="off">
+        <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">✕</button>
+      </div>
+    </div>
     <div class="topbar-right">
       <span id="n-alert"   class="badge bd-y" style="display:none"></span>
       <span id="n-user"></span>
@@ -996,7 +1062,7 @@ canvas{display:block;width:100%}
         </div>
         <div class="card">
           <div class="tw"><table>
-            <thead><tr><th>Nom</th><th>Cat.</th><th>Unité</th><th>Stock</th><th>Seuil</th><th>Prix unit.</th><th>Valeur</th><th></th></tr></thead>
+            <thead><tr><th>Nom</th><th>Cat.</th><th>Unité</th><th>Stock</th><th>Seuil</th><th>Prix achat</th><th>Prix vente</th><th>Bénéfice/u</th><th>Valeur PA</th><th></th></tr></thead>
             <tbody id="prod-body"></tbody>
           </table></div>
         </div>
@@ -1102,8 +1168,12 @@ canvas{display:block;width:100%}
         <div class="f"><label>Stock initial</label><input type="number" id="pr-stock" value="0" min="0" inputmode="numeric"></div>
         <div class="f"><label>Seuil alerte</label><input type="number" id="pr-seuil" value="10" min="0" inputmode="numeric"></div>
       </div>
-      <div class="f"><label>Prix unitaire</label><input type="number" id="pr-prix" value="0" min="0" step="0.01" inputmode="decimal" placeholder="0"></div>
-      <div class="f"><label>Description</label><textarea id="pr-desc" rows="2" placeholder="Optionnel…"></textarea></div>
+      <div class="row2">
+        <div class="f"><label>Prix d'achat (PA)</label><input type="number" id="pr-pa" value="0" min="0" step="0.01" inputmode="decimal" placeholder="0" oninput="updateBenefPreview()"></div>
+        <div class="f"><label>Prix de vente (PV)</label><input type="number" id="pr-pv" value="0" min="0" step="0.01" inputmode="decimal" placeholder="0" oninput="updateBenefPreview()"></div>
+      </div>
+      <div id="benef-preview" style="font-size:.75rem;color:var(--emerald);font-weight:600;margin:-8px 0 12px;padding:4px 8px;background:var(--emerald-50);border-radius:var(--r-sm);display:none"></div>
+            <div class="f"><label>Description</label><textarea id="pr-desc" rows="2" placeholder="Optionnel…"></textarea></div>
       <input type="hidden" id="pr-id">
       <div id="pr-err" class="errbar"></div>
       <div class="mf">
@@ -1357,6 +1427,14 @@ function syncQueue() {
 
 /* ═══ SERVICE WORKER ═══════════════════════════════════════ */
 if ('serviceWorker' in navigator) {
+  /* Clear any old caches from previous SW versions first */
+  if (window.caches) {
+    caches.keys().then(function(keys) {
+      keys.forEach(function(k) {
+        if (k !== 'stockflow-v3') caches.delete(k);
+      });
+    });
+  }
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('./sw.js').catch(function(){});
   });
@@ -1756,11 +1834,11 @@ function launchApp() {
 
 /* ═══ DEMO DATA ════════════════════════════════════════════ */
 var DEMO_S = [
-  {id:'P1',nom:'Farine T55',    categorie:'Épicerie',  unite:'kg',seuil:50, stock:150, prix_unitaire:1200,  valeur:180000},
-  {id:'P2',nom:'Sucre Blanc',   categorie:'Épicerie',  unite:'kg',seuil:20, stock:8,   prix_unitaire:800,   valeur:6400},
-  {id:'P3',nom:'Huile Tournesol',categorie:'Épicerie', unite:'L', seuil:10, stock:45,  prix_unitaire:1500,  valeur:67500},
-  {id:'P4',nom:'Sel Fin',       categorie:'Condiments',unite:'kg',seuil:5,  stock:0,   prix_unitaire:400,   valeur:0},
-  {id:'P5',nom:'Levure',        categorie:'Épicerie',  unite:'g', seuil:500,stock:2500, prix_unitaire:5,    valeur:12500}
+  {id:'P1',nom:'Farine T55',    categorie:'Épicerie',  unite:'kg',seuil:50, stock:150, prix_achat:1000, prix_vente:1200, marge:20, valeur_achat:150000, valeur_vente:180000},
+  {id:'P2',nom:'Sucre Blanc',   categorie:'Épicerie',  unite:'kg',seuil:20, stock:8,   prix_achat:650,  prix_vente:800,  marge:23.08, valeur_achat:5200, valeur_vente:6400},
+  {id:'P3',nom:'Huile Tournesol',categorie:'Épicerie', unite:'L', seuil:10, stock:45,  prix_achat:1200, prix_vente:1500, marge:25, valeur_achat:54000, valeur_vente:67500},
+  {id:'P4',nom:'Sel Fin',       categorie:'Condiments',unite:'kg',seuil:5,  stock:0,   prix_achat:300,  prix_vente:400,  marge:33.33, valeur_achat:0, valeur_vente:0},
+  {id:'P5',nom:'Levure',        categorie:'Épicerie',  unite:'g', seuil:500,stock:2500, prix_achat:4,    prix_vente:5,    marge:25, valeur_achat:10000, valeur_vente:12500}
 ];
 var DEMO_P = DEMO_S.map(function(s){
   return {id:s.id,nom:s.nom,categorie:s.categorie,unite:s.unite,seuil:s.seuil,description:''};
@@ -1820,7 +1898,9 @@ function doRefresh() {
     cacheLoad();
     /* Recompute valeur in case cache didn't store it */
     S.stocks = S.stocks.map(function(s) {
-      if (!s.valeur) s.valeur = (+s.stock||0) * (+s.prix_unitaire||0);
+      if (!s.valeur_achat) s.valeur_achat = (+s.stock||0) * (+s.prix_achat||0);
+      if (!s.valeur_vente) s.valeur_vente = (+s.stock||0) * (+s.prix_vente||0);
+      s.valeur = s.valeur_achat;
       return s;
     });
     if (S.mouvements.length) {
@@ -1854,9 +1934,9 @@ function doRefresh() {
     if (rs[0].status==='fulfilled' && rs[0].value) {
       S.stocks = (rs[0].value.data || []).map(function(s) {
         /* Ensure valeur is always computed even if API doesn't return it */
-        if (s.valeur === undefined || s.valeur === null) {
-          s.valeur = (+s.stock || 0) * (+s.prix_unitaire || 0);
-        }
+        if (!s.valeur_achat) s.valeur_achat = (+s.stock||0) * (+s.prix_achat||0);
+        if (!s.valeur_vente)  s.valeur_vente  = (+s.stock||0) * (+s.prix_vente||0);
+        s.valeur = s.valeur_achat;
         return s;
       });
     }
@@ -1952,10 +2032,10 @@ function fmtCur(v) {
 function renderDashboard() {
   var al = S.stocks.filter(function(s) { return +s.stock <= +s.seuil; });
   var ru = S.stocks.filter(function(s) { return +s.stock === 0; });
-  var valTotale = S.stocks.reduce(function(sum,s){ return sum + (+s.valeur||0); }, 0);
+  var valTotale = S.stocks.reduce(function(sum,s){ return sum + (+s.valeur_achat||0); }, 0);
   document.getElementById('d-stats').innerHTML =
     sc('Produits',   S.stocks.length,    'références', 'ca') +
-    sc('Valeur stock', fmtCur(valTotale),'monétaire',  'cg') +
+    sc('Valeur stock',  fmtCur(valTotale),'au prix achat','cg') +
     sc('Alertes',    al.length,          'sous seuil', 'cy') +
     sc('Ruptures',   ru.length,          'à zéro',     'cr');
 
@@ -1993,7 +2073,9 @@ function renderStock() {
   }
   /* Total quantity across all products */
   var totalUnites = S.stocks.reduce(function(sum, s) { return sum + (+s.stock || 0); }, 0);
-  var totalValeur = S.stocks.reduce(function(sum, s) { return sum + (+s.valeur || 0); }, 0);
+  var totalValeurA = S.stocks.reduce(function(sum,s){ return sum+(+s.valeur_achat||0); },0);
+  var totalValeurV = S.stocks.reduce(function(sum,s){ return sum+(+s.valeur_vente||0); },0);
+  var margeGlobale = totalValeurA > 0 ? Math.round((totalValeurV-totalValeurA)/totalValeurA*10000)/100 : 0;
   var todayStart = new Date(); todayStart.setHours(0,0,0,0);
   var oc = _stockOC(todayStart.toISOString(), null);
   var totalBanner =
@@ -2002,7 +2084,7 @@ function renderStock() {
         '<span style="font-size:.78rem;font-weight:600;color:var(--indigo-700)">📦 Stock total cumulé</span>' +
         '<div style="text-align:right">' +
           '<div style="font-size:1.4rem;font-weight:800;color:var(--indigo);letter-spacing:-.03em">' + totalUnites.toLocaleString('fr-FR') + ' <span style="font-size:.8rem;font-weight:500;color:var(--indigo-700)">unités</span></div>' +
-          '<div style="font-size:.82rem;font-weight:700;color:var(--emerald-700)">💰 ' + fmtCur(totalValeur) + '</div>' +
+          '<div style="font-size:.78rem;color:var(--emerald-700);font-weight:700">💰 PA : ' + fmtCur(totalValeurA) + '  ·  PV : ' + fmtCur(totalValeurV) + '  ·  Bénéfice : <b>' + fmtCur(totalValeurV - totalValeurA) + '</b></div>' +
         '</div>' +
       '</div>' +
       '<div style="display:flex;gap:16px;font-size:.75rem;color:var(--indigo-700)">' +
@@ -2016,8 +2098,9 @@ function renderStock() {
     var cls = isR ? 'bd-r' : isA ? 'bd-y' : 'bd-g';
     var lbl = isR ? 'Rupture' : isA ? 'Alerte' : 'OK';
     var pct = +s.seuil > 0 ? Math.min(100, (+s.stock / (+s.seuil * 3)) * 100) : 80;
-    var valeur = +s.prix_unitaire > 0
-      ? '<div style="font-size:.7rem;color:var(--emerald-700);font-weight:600;margin-top:4px">💰 ' + fmtCur(+s.stock * +s.prix_unitaire) + '</div>'
+    var pa = +s.prix_achat||0, pv = +s.prix_vente||0, mg = +s.marge||0;
+    var valeur = pa > 0
+      ? '<div style="font-size:.7rem;color:var(--emerald-700);font-weight:600;margin-top:4px">💰 PA: ' + fmtCur(pa) + ' · PV: ' + fmtCur(pv) + ' · Bénéfice: ' + fmtCur(pv - pa) + '/u</div>'
       : '';
     return '<div class="sk"><div class="sk-bar" style="background:' + col + '"></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
@@ -2026,7 +2109,7 @@ function renderStock() {
       '<div><span class="sk-qty" style="color:' + col + '">' + s.stock + '</span><span class="sk-unit">' + s.unite + '</span></div>' +
       valeur +
       '<div class="prog"><div class="prog-fill" style="width:' + pct + '%;background:' + col + '"></div></div>' +
-      '<div class="sk-seuil">Seuil : ' + s.seuil + (s.prix_unitaire > 0 ? ' · PU : ' + fmtCur(s.prix_unitaire) : '') + '</div></div>';
+      '<div class="sk-seuil">Seuil : ' + s.seuil + '</div></div>';
   }).join('');
 }
 
@@ -2057,9 +2140,13 @@ function renderProduits() {
     var s    = S.stocks.find(function(x) { return x.id === p.id; });
     var stk  = s ? +s.stock : 0;
     var cls  = stk === 0 ? 'bd-r' : stk <= +p.seuil ? 'bd-y' : 'bd-g';
-    var prix = +p.prix_unitaire || 0;
-    var val  = prix > 0 ? fmtCur(stk * prix) : '—';
-    var pu   = prix > 0 ? fmtCur(prix) : '—';
+    var pa   = +p.prix_achat || 0;
+    var pv   = +p.prix_vente  || 0;
+    var benef = pv - pa;
+    var val  = pa > 0 ? fmtCur(stk * pa) : '—';
+    var paS  = pa > 0 ? fmtCur(pa) : '—';
+    var pvS  = pv > 0 ? fmtCur(pv) : '—';
+    var mgS  = pa > 0 ? fmtCur(benef) : '—';
     var actionBtns = isAdmin()
       ? '<td><div style="display:flex;gap:4px">' +
           '<button class="btn btn-o btn-sm btn-ic prod-action" onclick="editProd(\'' + p.id + '\')" title="Modifier">✎</button>' +
@@ -2072,7 +2159,9 @@ function renderProduits() {
       '<td class="tm">' + p.unite + '</td>' +
       '<td><span class="badge ' + cls + '" style="font-family:var(--mono)">' + stk + '</span></td>' +
       '<td class="tm" style="font-family:var(--mono)">' + p.seuil + '</td>' +
-      '<td class="tm" style="font-family:var(--mono)">' + pu + '</td>' +
+      '<td class="tm" style="font-family:var(--mono)">' + paS + '</td>' +
+      '<td class="tm" style="font-family:var(--mono)">' + pvS + '</td>' +
+      '<td class="tm" style="font-family:var(--mono);color:' + (benef > 0 ? 'var(--emerald)' : benef < 0 ? 'var(--rose)' : 'var(--text-muted)') + ';font-weight:600">' + mgS + '</td>' +
       '<td style="font-size:.78rem;font-weight:600;color:var(--emerald);font-family:var(--mono)">' + val + '</td>' +
       actionBtns + '</tr>';
   }).join('');
@@ -2289,7 +2378,9 @@ function pdfStock() {
   var ale =stocks.filter(function(s){return +s.stock>0&&+s.stock<=+s.seuil;});
   var ok  =stocks.filter(function(s){return +s.stock>+s.seuil;});
   var totalU = stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
-  var totalV = stocks.reduce(function(sum,s){return sum+(+s.valeur||0);},0);
+  var totalVA = stocks.reduce(function(sum,s){return sum+(+s.valeur_achat||0);},0);
+  var totalVV = stocks.reduce(function(sum,s){return sum+(+s.valeur_vente||0);},0);
+  var mgGlobal = totalVA>0?Math.round((totalVV-totalVA)/totalVA*10000)/100:0;
   var todayStart = new Date(); todayStart.setHours(0,0,0,0);
   var oc = _stockOC(todayStart.toISOString(), null);
   var ctx=_newDoc('Etat du stock','Stock en temps reel');
@@ -2306,19 +2397,21 @@ function pdfStock() {
   ]);
   ctx.doc.autoTable({
     startY:ctx.y, margin:{left:12,right:12},
-    head:[['Produit','Categorie','Unite','Prix unit.','Stock','Valeur','Seuil','Statut']],
+    head:[['Produit','Categorie','Unite','PA','PV','Benefice/u','Stock','Val. achat','Seuil','Statut']],
     body:stocks.map(function(s){
       var isR=+s.stock===0, isA=!isR&&+s.stock<=+s.seuil;
-      var prix=+s.prix_unitaire||0;
-      var val=prix>0?Number(+s.stock*prix).toLocaleString('fr-FR')+' F':'-';
-      var pu=prix>0?Number(prix).toLocaleString('fr-FR')+' F':'-';
-      return [s.nom,s.categorie||'-',s.unite,pu,s.stock,val,s.seuil,isR?'RUPTURE':isA?'ALERTE':'OK'];
+      var pa=+s.prix_achat||0, pv=+s.prix_vente||0, mg=+s.marge||0;
+      var paS=pa>0?Number(pa).toLocaleString('fr-FR')+' F':'-';
+      var pvS=pv>0?Number(pv).toLocaleString('fr-FR')+' F':'-';
+      var mgS=pa>0?Number(pv-pa).toLocaleString('fr-FR')+' F':'-';
+      var valS=pa>0?Number(+s.stock*pa).toLocaleString('fr-FR')+' F':'-';
+      return [s.nom,s.categorie||'-',s.unite,paS,pvS,mgS,s.stock,valS,s.seuil,isR?'RUPTURE':isA?'ALERTE':'OK'];
     }),
     styles:{fontSize:7,cellPadding:2.5},
     headStyles:AT_HEAD, alternateRowStyles:AT_ALT,
-    columnStyles:{3:{halign:'right'},4:{halign:'right',fontStyle:'bold'},5:{halign:'right'},6:{halign:'right'},7:{halign:'center'}},
+    columnStyles:{3:{halign:'right'},4:{halign:'right'},5:{halign:'right'},6:{halign:'right',fontStyle:'bold'},7:{halign:'right'},8:{halign:'right'},9:{halign:'center'}},
     didDrawCell:function(d){
-      if(d.column.index===7&&d.section==='body'){
+      if(d.column.index===9&&d.section==='body'){
         var v=d.cell.raw;
         d.cell.styles.textColor=v==='RUPTURE'?[225,29,72]:v==='ALERTE'?[217,119,6]:[5,150,105];
       }
@@ -2396,29 +2489,32 @@ function pdfProduits() {
     var s=S.stocks.find(function(x){return x.id===p.id;}),stk=s?+s.stock:0,seuil=+p.seuil||0;
     var isR=stk===0,isA=!isR&&stk<=seuil;
     if(isR)rupt++;else if(isA)ale++;else ok++;
-    var prix=+p.prix_unitaire||0;
-    var val=prix>0?stk*prix:0;
+    var pa=+p.prix_achat||0, pv=+p.prix_vente||0;
+    var mg=pa>0?Math.round((pv-pa)/pa*10000)/100:0;
+    var val=pa>0?stk*pa:0;
     valeurTotale+=val;
-    var puStr=prix>0?Number(prix).toLocaleString('fr-FR')+' F':'-';
-    var valStr=prix>0?Number(val).toLocaleString('fr-FR')+' F':'-';
-    return[p.nom,p.categorie||'-',p.unite||'-',stk,seuil,puStr,valStr,isR?'RUPTURE':isA?'ALERTE':'OK'];
+    var paStr=pa>0?Number(pa).toLocaleString('fr-FR')+' F':'-';
+    var pvStr=pv>0?Number(pv).toLocaleString('fr-FR')+' F':'-';
+    var mgStr=pa>0?Number(pv-pa).toLocaleString('fr-FR')+' F':'-';
+    var valStr=pa>0?Number(val).toLocaleString('fr-FR')+' F':'-';
+    return[p.nom,p.categorie||'-',p.unite||'-',stk,seuil,paStr,pvStr,mgStr,valStr,isR?'RUPTURE':isA?'ALERTE':'OK'];
   });
   var ctx=_newDoc('Fiche produits','Liste des produits');
   _kpiRow(ctx,[
     {label:'Total',        value:produits.length,                                       color:[30,41,59]},
-    {label:'Valeur totale',value:Number(valeurTotale).toLocaleString('fr-FR')+' F',    color:[5,150,105]},
+    {label:'Val. stock PA',value:Number(valeurTotale).toLocaleString('fr-FR')+' F',    color:[5,150,105]},
     {label:'Alertes',      value:ale,                                                   color:[217,119,6]},
     {label:'Ruptures',     value:rupt,                                                  color:[225,29,72]}
   ]);
   ctx.doc.autoTable({
     startY:ctx.y, margin:{left:12,right:12},
-    head:[['Nom','Categorie','Unite','Stock','Seuil','Prix unit.','Valeur','Statut']],
+    head:[['Nom','Categorie','Unite','Stock','Seuil','Prix achat','Prix vente','Benefice/u','Valeur PA','Statut']],
     body:rows,
     styles:{fontSize:7,cellPadding:2.5},
     headStyles:AT_HEAD, alternateRowStyles:AT_ALT,
-    columnStyles:{3:{halign:'right',fontStyle:'bold'},4:{halign:'right'},5:{halign:'right'},6:{halign:'right'},7:{halign:'center'}},
+    columnStyles:{3:{halign:'right',fontStyle:'bold'},4:{halign:'right'},5:{halign:'right'},6:{halign:'right'},7:{halign:'right'},8:{halign:'right'},9:{halign:'center'}},
     didDrawCell:function(d){
-      if(d.column.index===7&&d.section==='body'){
+      if(d.column.index===9&&d.section==='body'){
         var v=d.cell.raw;
         d.cell.styles.textColor=v==='RUPTURE'?[225,29,72]:v==='ALERTE'?[217,119,6]:[5,150,105];
       }
@@ -2475,8 +2571,9 @@ function whatsappProduits() {
       var s=S.stocks.find(function(x){return x.id===p.id;}),stk=s?+s.stock:0,seuil=+p.seuil||0;
       var isR=stk===0,isA=!isR&&stk<=seuil;
       if(isR)rupt++;else if(isA)ale++;else ok++;
-      var prixWA = +p.prix_unitaire||0;
-      var valWA  = prixWA>0?' — '+Number(stk*prixWA).toLocaleString('fr-FR')+' FCFA':'';
+      var paWA = +p.prix_achat||0, pvWA = +p.prix_vente||0;
+      var benefWA = pvWA - paWA;
+      var valWA = paWA>0?' — PA: '+Number(paWA).toLocaleString('fr-FR')+' FCFA / PV: '+Number(pvWA).toLocaleString('fr-FR')+' FCFA (bénéf: '+Number(benefWA).toLocaleString('fr-FR')+' FCFA)'  :'';
       lines.push((isR?'🔴':isA?'🟡':'🟢')+' '+p.nom+' : *'+stk+' '+(p.unite||'u')+'*'+valWA+' (seuil '+seuil+')');
     });
   });
@@ -2504,7 +2601,9 @@ function exportWhatsApp() {
     '📦 *ÉTAT DU STOCK — StockFlow*',
     '🕐 ' + now,
     '📊 Stock total : *' + totalUnites.toLocaleString('fr-FR') + ' unités*',
-    '💰 Valeur totale : *' + Number(totalValeur).toLocaleString('fr-FR') + ' FCFA*',
+    '💰 Valeur achat : *' + Number(totalValeur).toLocaleString('fr-FR') + ' FCFA*',
+    '💹 Valeur vente : *' + Number(totalValeurVWA).toLocaleString('fr-FR') + ' FCFA*',
+    '📈 Bénéfice potentiel : *' + Number(totalValeurVWA - totalValeur).toLocaleString('fr-FR') + ' FCFA*',
     '📂 Ouverture (auj.) : *' + ocW.ouverture.toLocaleString('fr-FR') + ' unités*',
     '📁 Clôture : *' + ocW.cloture.toLocaleString('fr-FR') + ' unités*',
     '─────────────────────────'
@@ -2733,6 +2832,236 @@ function checkMouvementRupture(produitId, stockApres) {
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════════
+   SEARCH ENGINE — client-side, real-time, no API calls
+═══════════════════════════════════════════════════════════ */
+
+var SEARCH_QUERY = '';
+var SEARCH_TIMER = null;
+
+function onSearch(val) {
+  SEARCH_QUERY = val.trim().toLowerCase();
+  document.getElementById('search-clear').style.display = SEARCH_QUERY ? '' : 'none';
+
+  /* Debounce 120ms */
+  clearTimeout(SEARCH_TIMER);
+  SEARCH_TIMER = setTimeout(function() { applySearch(); }, 120);
+}
+
+function clearSearch() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('search-clear').style.display = 'none';
+  SEARCH_QUERY = '';
+  applySearch();
+}
+
+function applySearch() {
+  var q   = SEARCH_QUERY;
+  var tab = document.querySelector('.page.on');
+  if (!tab) return;
+  var id  = tab.id;
+
+  if      (id === 'pg-stock')      searchStock(q);
+  else if (id === 'pg-produits')   searchProduits(q);
+  else if (id === 'pg-mouvements') searchMouvements(q);
+  else if (id === 'pg-dashboard')  searchDashboard(q);
+  else {
+    /* other pages: clear highlight */
+    clearSearchCount();
+  }
+}
+
+/* ── Highlight matching text ─────────────────────────────── */
+function hl(text, q) {
+  if (!q || !text) return text;
+  var escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(text).replace(new RegExp('(' + escaped + ')', 'gi'),
+    '<span class="search-hl">$1</span>');
+}
+
+function showCount(n, total, label) {
+  var existing = document.querySelector('.search-count');
+  if (existing) existing.remove();
+  if (!SEARCH_QUERY) return;
+  var el = document.createElement('div');
+  el.className = 'search-count';
+  el.textContent = n + ' résultat' + (n > 1 ? 's' : '') + ' sur ' + total + ' ' + label;
+  var wrap = document.querySelector('.wrap');
+  if (wrap) wrap.insertBefore(el, wrap.firstChild);
+}
+
+function clearSearchCount() {
+  var el = document.querySelector('.search-count');
+  if (el) el.remove();
+}
+
+/* ── Search Stock ────────────────────────────────────────── */
+function searchStock(q) {
+  var el = document.getElementById('pg-stock-grid');
+  if (!el) return;
+  if (!q) { renderStock(); clearSearchCount(); return; }
+
+  var results = S.stocks.filter(function(s) {
+    return s.nom.toLowerCase().includes(q) ||
+           (s.categorie||'').toLowerCase().includes(q) ||
+           (s.unite||'').toLowerCase().includes(q);
+  });
+
+  if (!results.length) {
+    el.innerHTML = '<div class="empty" style="grid-column:1/-1">Aucun résultat pour "' + SEARCH_QUERY + '"</div>';
+    showCount(0, S.stocks.length, 'produits');
+    return;
+  }
+
+  /* Rebuild stock banner */
+  var totalUnites = S.stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
+  var totalValeurA = S.stocks.reduce(function(sum,s){return sum+(+s.valeur_achat||0);},0);
+  var totalValeurV = S.stocks.reduce(function(sum,s){return sum+(+s.valeur_vente||0);},0);
+  var todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  var oc = _stockOC(todayStart.toISOString(), null);
+  var totalBanner =
+    '<div style="grid-column:1/-1;background:var(--indigo-50);border:1px solid var(--indigo-200);border-radius:var(--r-md);padding:12px 16px;margin-bottom:2px">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+        '<span style="font-size:.78rem;font-weight:600;color:var(--indigo-700)">📦 Stock total cumulé</span>' +
+        '<div style="text-align:right">' +
+          '<div style="font-size:1.4rem;font-weight:800;color:var(--indigo);letter-spacing:-.03em">' + totalUnites.toLocaleString('fr-FR') + ' <span style="font-size:.8rem;font-weight:500;color:var(--indigo-700)">unités</span></div>' +
+          '<div style="font-size:.78rem;color:var(--emerald-700);font-weight:700">💰 PA : ' + fmtCur(totalValeurA) + '  ·  PV : ' + fmtCur(totalValeurV) + '  ·  Bénéfice : <b>' + fmtCur(totalValeurV - totalValeurA) + '</b></div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:16px;font-size:.75rem;color:var(--indigo-700)">' +
+        '<span>📂 <b>Ouverture</b> : ' + oc.ouverture.toLocaleString('fr-FR') + ' u</span>' +
+        '<span>📁 <b>Clôture</b> : ' + oc.cloture.toLocaleString('fr-FR') + ' u</span>' +
+      '</div>' +
+    '</div>';
+
+  el.innerHTML = totalBanner + results.map(function(s) {
+    var isR = +s.stock===0, isA = !isR && +s.stock<=+s.seuil;
+    var col = isR?'var(--rose)':isA?'var(--amber)':'var(--emerald)';
+    var cls = isR?'bd-r':isA?'bd-y':'bd-g';
+    var lbl = isR?'Rupture':isA?'Alerte':'OK';
+    var pct = +s.seuil>0?Math.min(100,(+s.stock/(+s.seuil*3))*100):80;
+    var pa = +s.prix_achat||0, pv = +s.prix_vente||0;
+    var valeur = pa>0?'<div style="font-size:.7rem;color:var(--emerald-700);font-weight:600;margin-top:4px">💰 PA: '+fmtCur(pa)+' · PV: '+fmtCur(pv)+' · Bénéfice: '+fmtCur(pv-pa)+'/u</div>':'';
+    return '<div class="sk"><div class="sk-bar" style="background:'+col+'"></div>'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">'+
+        '<div><div class="sk-nom">'+hl(s.nom,q)+'</div><div class="sk-cat">'+hl(s.categorie||'—',q)+'</div></div>'+
+        '<span class="badge '+cls+'">'+lbl+'</span></div>'+
+      '<div><span class="sk-qty" style="color:'+col+'">'+s.stock+'</span><span class="sk-unit">'+s.unite+'</span></div>'+
+      valeur+
+      '<div class="prog"><div class="prog-fill" style="width:'+pct+'%;background:'+col+'"></div></div>'+
+      '<div class="sk-seuil">Seuil : '+s.seuil+'</div></div>';
+  }).join('');
+
+  showCount(results.length, S.stocks.length, 'produits');
+}
+
+/* ── Search Produits ─────────────────────────────────────── */
+function searchProduits(q) {
+  var el = document.getElementById('prod-body');
+  if (!el) return;
+  if (!q) { renderProduits(); clearSearchCount(); return; }
+
+  var results = S.produits.filter(function(p) {
+    return p.nom.toLowerCase().includes(q) ||
+           (p.categorie||'').toLowerCase().includes(q) ||
+           (p.unite||'').toLowerCase().includes(q) ||
+           (p.description||'').toLowerCase().includes(q);
+  });
+
+  if (!results.length) {
+    el.innerHTML = '<tr><td colspan="10"><div class="empty">Aucun résultat pour "'+SEARCH_QUERY+'"</div></td></tr>';
+    showCount(0, S.produits.length, 'produits');
+    return;
+  }
+
+  el.innerHTML = results.map(function(p) {
+    var s    = S.stocks.find(function(x){return x.id===p.id;});
+    var stk  = s?+s.stock:0;
+    var cls  = stk===0?'bd-r':stk<=+p.seuil?'bd-y':'bd-g';
+    var pa   = +p.prix_achat||0, pv = +p.prix_vente||0;
+    var benef = pv - pa;
+    var val  = pa>0?fmtCur(stk*pa):'—';
+    var paS  = pa>0?fmtCur(pa):'—';
+    var pvS  = pv>0?fmtCur(pv):'—';
+    var mgS  = pa>0?fmtCur(benef):'—';
+    var actionBtns = isAdmin()
+      ? '<td><div style="display:flex;gap:4px">'+
+          '<button class="btn btn-o btn-sm btn-ic prod-action" onclick="editProd(\''+p.id+'\')" title="Modifier">✎</button>'+
+          '<button class="btn btn-r btn-sm btn-ic prod-action" onclick="deleteProd(\''+p.id+'\')" title="Supprimer">✕</button>'+
+        '</div></td>'
+      : '<td></td>';
+    return '<tr>'+
+      '<td style="font-weight:600;color:var(--text-h)">'+hl(p.nom,q)+'</td>'+
+      '<td class="tm">'+hl(p.categorie||'—',q)+'</td>'+
+      '<td class="tm">'+p.unite+'</td>'+
+      '<td><span class="badge '+cls+'" style="font-family:var(--mono)">'+stk+'</span></td>'+
+      '<td class="tm" style="font-family:var(--mono)">'+p.seuil+'</td>'+
+      '<td class="tm" style="font-family:var(--mono)">'+paS+'</td>'+
+      '<td class="tm" style="font-family:var(--mono)">'+pvS+'</td>'+
+      '<td class="tm" style="font-family:var(--mono);color:'+(benef>0?'var(--emerald)':benef<0?'var(--rose)':'var(--text-muted)')+';font-weight:600">'+mgS+'</td>'+
+      '<td style="font-size:.78rem;font-weight:600;color:var(--emerald);font-family:var(--mono)">'+val+'</td>'+
+      actionBtns+'</tr>';
+  }).join('');
+
+  showCount(results.length, S.produits.length, 'produits');
+}
+
+/* ── Search Mouvements ───────────────────────────────────── */
+function searchMouvements(q) {
+  var el = document.getElementById('mvt-body');
+  if (!el) return;
+  if (!q) { renderMouvements(); clearSearchCount(); return; }
+
+  var results = S.mouvements.filter(function(m) {
+    return m.produit_nom.toLowerCase().includes(q) ||
+           (m.motif||'').toLowerCase().includes(q) ||
+           (m.operateur||'').toLowerCase().includes(q) ||
+           m.type.toLowerCase().includes(q);
+  });
+
+  if (!results.length) {
+    el.innerHTML = '<tr><td colspan="6"><div class="empty">Aucun résultat pour "'+SEARCH_QUERY+'"</div></td></tr>';
+    showCount(0, S.mouvements.length, 'mouvements');
+    return;
+  }
+
+  el.innerHTML = results.map(function(m) {
+    var isE = m.type==='ENTREE';
+    return '<tr>'+
+      '<td class="tm">'+fmtDShort(m.horodatage)+'</td>'+
+      '<td style="font-weight:600;color:var(--text-h)">'+hl(m.produit_nom,q)+'</td>'+
+      '<td><span class="badge '+(isE?'bd-g':'bd-r')+'" style="padding:1px 6px;font-size:.62rem">'+m.type+'</span></td>'+
+      '<td style="color:'+(isE?'var(--emerald)':'var(--rose)')+';font-weight:600;font-family:var(--mono)">'+(isE?'＋':'−')+m.quantite+'</td>'+
+      '<td class="tm">'+hl(m.motif||'—',q)+'</td>'+
+      '<td class="tm">'+hl(m.operateur||'—',q)+'</td></tr>';
+  }).join('');
+
+  showCount(results.length, S.mouvements.length, 'mouvements');
+}
+
+/* ── Search Dashboard (filter alert list) ───────────────── */
+function searchDashboard(q) {
+  if (!q) { renderDashboard(); clearSearchCount(); return; }
+  /* On dashboard: filter the recent movements table */
+  var el = document.getElementById('d-mvt');
+  var results = S.mouvements.slice(0,30).filter(function(m) {
+    return m.produit_nom.toLowerCase().includes(q) ||
+           (m.motif||'').toLowerCase().includes(q) ||
+           (m.operateur||'').toLowerCase().includes(q);
+  }).slice(0,6);
+  el.innerHTML = results.length ? results.map(function(m) {
+    var isE = m.type==='ENTREE';
+    return '<tr>'+
+      '<td class="tm">'+fmtDShort(m.horodatage)+'</td>'+
+      '<td style="font-weight:600;color:var(--text-h);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+hl(m.produit_nom,q)+'</td>'+
+      '<td><span class="badge '+(isE?'bd-g':'bd-r')+'" style="padding:1px 6px;font-size:.62rem">'+m.type+'</span></td>'+
+      '<td style="color:'+(isE?'var(--emerald)':'var(--rose)')+';font-weight:600;font-family:var(--mono)">'+(isE?'＋':'−')+m.quantite+'</td>'+
+      '<td style="font-weight:600;font-family:var(--mono);color:var(--text-h)">'+(m.stock_apres!==undefined?m.stock_apres:'—')+'</td></tr>';
+  }).join('') : '<tr><td colspan="5"><div class="empty">Aucun résultat</div></td></tr>';
+  showCount(results.length, S.mouvements.slice(0,30).length, 'mouvements récents');
+}
+
 function renderAlertBadge() {
   var n  = S.stocks.filter(function(s) { return +s.stock <= +s.seuil; }).length;
   var el = document.getElementById('n-alert');
@@ -2834,7 +3163,8 @@ function addBulkRow() {
   div.className = 'bulk-row';
   div.id = 'bulk-row-'+id;
   div.innerHTML =
-    '<select onchange="updateBulkSummary()">'+opts+'</select>'+
+    '<select onchange="updateBulkSummary()" style="min-width:0;flex:1">'+
+    ''+opts+'</select>'+
     '<input type="number" min="1" value="1" inputmode="numeric" onchange="updateBulkSummary()" oninput="updateBulkSummary()">'+
     '<button class="bulk-del" onclick="removeBulkRow('+id+')" title="Supprimer">✕</button>';
   document.getElementById('bulk-rows').appendChild(div);
@@ -2899,6 +3229,25 @@ function saveBulk() {
     .then(function(){ btn.disabled=false; });
 }
 
+/* ── Bénéfice preview in produit modal ─────────────────────── */
+function updateBenefPreview() {
+  var pa  = +document.getElementById('pr-pa').value || 0;
+  var pv  = +document.getElementById('pr-pv').value || 0;
+  var el  = document.getElementById('benef-preview');
+  if (!el) return;
+  if (pa > 0 && pv > 0) {
+    var marge = Math.round((pv - pa) / pa * 10000) / 100;
+    var col   = marge >= 0 ? 'var(--emerald-700)' : 'var(--rose-700)';
+    var bg    = marge >= 0 ? 'var(--emerald-50)'  : 'var(--rose-50)';
+    el.style.display     = 'block';
+    el.style.color       = col;
+    el.style.background  = bg;
+    el.textContent       = '📈 Bénéfice : ' + fmtCur(pv - pa) + ' / unité';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 function openProd(d) {
   document.getElementById('prod-title').textContent = d ? 'Modifier' : 'Nouveau produit';
   document.getElementById('pr-nom').value   = d&&d.nom   || '';
@@ -2915,7 +3264,7 @@ function openProd(d) {
 function editProd(id) {
   var p = S.produits.find(function(x) { return x.id===id; }); if (!p) return;
   var s = S.stocks.find(function(x) { return x.id===id; });
-  openProd({id:p.id, nom:p.nom, cat:p.categorie, unite:p.unite, stock:s?s.stock:0, seuil:p.seuil, prix:p.prix_unitaire||0, desc:p.description});
+  openProd({id:p.id, nom:p.nom, cat:p.categorie, unite:p.unite, stock:s?s.stock:0, seuil:p.seuil, prix_achat:p.prix_achat||0, prix_vente:p.prix_vente||0, desc:p.description});
 }
 function saveProd() {
   var nom = document.getElementById('pr-nom').value.trim();
@@ -2930,7 +3279,8 @@ function saveProd() {
     unite:          document.getElementById('pr-unite').value.trim() || 'unité',
     stock_initial:  +document.getElementById('pr-stock').value || 0,
     seuil:          +document.getElementById('pr-seuil').value || 0,
-    prix_unitaire:  +document.getElementById('pr-prix').value  || 0,
+    prix_achat:     +document.getElementById('pr-pa').value || 0,
+    prix_vente:     +document.getElementById('pr-pv').value || 0,
     description:    document.getElementById('pr-desc').value.trim()
   };
   if (editId) payload.id = editId;
@@ -3030,6 +3380,8 @@ function goTab(id, btn) {
   if (id==='dashboard') drawChart('ch-dash',  chartData(S.recap));
   if (id==='recap')     drawChart('ch-recap', chartData(S.recap));
   if (id==='equipe')    renderEquipe();
+  /* Re-apply search on tab switch */
+  if (SEARCH_QUERY) applySearch(); else clearSearchCount();
   closeFab();
 }
 
