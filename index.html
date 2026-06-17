@@ -2594,7 +2594,8 @@ function exportWhatsApp() {
   });
 
   var totalUnites = stocks.reduce(function(sum,s){return sum+(+s.stock||0);},0);
-  var totalValeur = stocks.reduce(function(sum,s){return sum+(+s.valeur||0);},0);
+  var totalValeur = stocks.reduce(function(sum,s){return sum+(+s.valeur_achat||0);},0);
+  var totalValeurVWA = stocks.reduce(function(sum,s){return sum+(+s.valeur_vente||0);},0);
   var todayStart2 = new Date(); todayStart2.setHours(0,0,0,0);
   var ocW = _stockOC(todayStart2.toISOString(), null);
   var lines = [
@@ -3255,10 +3256,12 @@ function openProd(d) {
   document.getElementById('pr-unite').value = d&&d.unite || 'kg';
   document.getElementById('pr-stock').value = d&&d.stock || 0;
   document.getElementById('pr-seuil').value = d&&d.seuil || 10;
-  document.getElementById('pr-prix').value  = d&&d.prix  || 0;
+  document.getElementById('pr-pa').value    = d&&d.prix_achat || 0;
+  document.getElementById('pr-pv').value    = d&&d.prix_vente || 0;
   document.getElementById('pr-desc').value  = d&&d.desc  || '';
   document.getElementById('pr-id').value    = d&&d.id    || '';
   document.getElementById('pr-err').classList.remove('on');
+  updateBenefPreview();
   openOv('ov-prod');
 }
 function editProd(id) {
