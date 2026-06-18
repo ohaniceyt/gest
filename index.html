@@ -167,6 +167,7 @@ textarea{resize:vertical;min-height:72px;font-size:15px}
 .bd-r{background:var(--rose-50);color:var(--rose-700);border-color:var(--rose-200)}
 .bd-y{background:var(--amber-50);color:var(--amber-700);border-color:var(--amber-200)}
 .bd-n{background:var(--surface-2);color:var(--text-muted);border-color:var(--border)}
+.bd-i{background:var(--indigo-50);color:var(--indigo-700);border-color:var(--indigo-200)}
 
 /* ═══ APP SHELL ════════════════════════════════════════════ */
 /* FIX: use display:none + display:flex via class, not conflicting with desktop block */
@@ -708,6 +709,47 @@ canvas{display:block;width:100%}
 .user-meta{font-size:.72rem;color:var(--text-muted);margin-top:2px}
 .user-inactive{opacity:.5}
 
+/* ═══ INVENTAIRE PERIODIQUE ════════════════════════════════ */
+.inv-controls{
+  display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;
+}
+.inv-row{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-md);padding:12px 14px;margin-bottom:8px;
+  display:flex;align-items:center;gap:12px;
+  transition:border-color var(--t1),background var(--t1);
+}
+.inv-row.has-ecart{border-color:var(--amber-200);background:var(--amber-50)}
+.inv-row.has-ecart.ecart-neg{border-color:var(--rose-200);background:var(--rose-50)}
+.inv-row-info{flex:1;min-width:0}
+.inv-row-nom{font-size:.86rem;font-weight:600;color:var(--text-h)}
+.inv-row-theo{font-size:.72rem;color:var(--text-muted);margin-top:1px}
+.inv-row-input{
+  width:72px;text-align:center;font-size:16px;font-weight:700;
+  padding:8px 4px;border-radius:var(--r-sm);
+}
+.inv-row-ecart{
+  font-size:.74rem;font-weight:700;font-family:var(--mono);
+  min-width:50px;text-align:right;
+}
+.inv-row-ecart.pos{color:var(--emerald)}
+.inv-row-ecart.neg{color:var(--rose)}
+.inv-row-ecart.zero{color:var(--text-faint);font-weight:500}
+.inv-summary-bar{
+  position:sticky;bottom:calc(var(--tabnav-h) + var(--sab));
+  background:var(--surface);border-top:1px solid var(--border);
+  padding:12px 16px;box-shadow:0 -4px 16px rgba(0,0,0,.06);
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  margin:0 -16px;
+}
+.inv-summary-text{font-size:.78rem;color:var(--text-muted)}
+.inv-summary-text b{color:var(--text-h)}
+.inv-recap-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 0;border-bottom:1px solid var(--border);
+}
+.inv-recap-row:last-child{border-bottom:none}
+
 /* ═══ ANALYTICS DASHBOARD ══════════════════════════════════ */
 .analytics-period{
   display:flex;gap:4px;margin-bottom:0;
@@ -1142,6 +1184,38 @@ canvas{display:block;width:100%}
         </div>
       </div>
 
+      <!-- INVENTAIRE PERIODIQUE -->
+      <div id="pg-inventaire" class="page">
+        <div class="ph">
+          <div class="pt">Inventaire</div>
+        </div>
+
+        <!-- STEP 1: counting -->
+        <div id="inv-step-count">
+          <div class="inv-controls">
+            <input type="text" id="inv-search" placeholder="🔍 Filtrer un produit…" style="flex:1" oninput="filterInvList(this.value)">
+            <button class="btn btn-o btn-sm" onclick="resetInventaire()">↻ Réinitialiser</button>
+          </div>
+          <div id="inv-list"></div>
+          <div class="inv-summary-bar" id="inv-summary-bar" style="display:none">
+            <div class="inv-summary-text"><b id="inv-ecart-count">0</b> écart(s) détecté(s)</div>
+            <button class="btn btn-p btn-sm" onclick="goToInvRecap()">Voir le récap →</button>
+          </div>
+        </div>
+
+        <!-- STEP 2: recap before validation -->
+        <div id="inv-step-recap" style="display:none">
+          <div class="card">
+            <div class="card-t">Récapitulatif des écarts</div>
+            <div id="inv-recap-list"></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="btn btn-o btn-full" onclick="backToInvCount()">← Modifier</button>
+            <button class="btn btn-p btn-full" id="inv-validate-btn" onclick="validateInventaire()">✓ Valider l'inventaire</button>
+          </div>
+        </div>
+      </div>
+
       <!-- EQUIPE (admin only) -->
       <div id="pg-equipe" class="page">
         <div class="ph">
@@ -1169,6 +1243,9 @@ canvas{display:block;width:100%}
     </button>
     <button class="tab" onclick="goTab('produits',this)">
       <span class="tab-icon">⊕</span><span class="tab-lbl">Produits</span>
+    </button>
+    <button class="tab" id="tab-inventaire" onclick="goTab('inventaire',this)">
+      <span class="tab-icon">📋</span><span class="tab-lbl">Inventaire</span>
     </button>
     <button class="tab" id="tab-equipe" onclick="goTab('equipe',this)" style="display:none">
       <span class="tab-icon">👥</span><span class="tab-lbl">Équipe</span>
@@ -1574,6 +1651,10 @@ function applyRoleUI() {
   /* Equipe tab — admin only */
   var tabEq = document.getElementById('tab-equipe');
   if (tabEq) tabEq.style.display = isAdmin() ? '' : 'none';
+
+  /* Inventaire tab — admin + operateur only (not lecteur) */
+  var tabInv = document.getElementById('tab-inventaire');
+  if (tabInv) tabInv.style.display = isOperateur() ? '' : 'none';
 
   /* FAB — operateur + admin only */
   var fab = document.getElementById('fab');
@@ -2192,14 +2273,21 @@ function renderMouvements() {
   var el = document.getElementById('mvt-body');
   el.innerHTML = S.mouvements.length ? S.mouvements.map(function(m) {
     var isE = m.type === 'ENTREE';
+    var isI = m.type === 'INVENTAIRE';
     var pendingBadge = m._pending
       ? '<span style="font-size:.6rem;background:var(--amber-100);color:var(--amber-700);border:1px solid var(--amber-200);border-radius:4px;padding:1px 5px;margin-left:4px">⏳</span>'
       : '';
+    var badgeCls = isI ? 'bd-i' : isE ? 'bd-g' : 'bd-r';
+    var qtyCol   = isI ? 'var(--indigo)' : isE ? 'var(--emerald)' : 'var(--rose)';
+    var qtySign  = isI
+      ? ((+m.stock_apres - +m.stock_avant) >= 0 ? '＋' : '−')
+      : (isE ? '＋' : '−');
+    var qtyVal   = isI ? Math.abs(+m.stock_apres - +m.stock_avant) : m.quantite;
     return '<tr' + (m._pending ? ' style="opacity:.75"' : '') + '>' +
       '<td class="tm">' + fmtDShort(m.horodatage) + '</td>' +
       '<td style="font-weight:600;color:var(--text-h)">' + m.produit_nom + pendingBadge + '</td>' +
-      '<td><span class="badge ' + (isE?'bd-g':'bd-r') + '" style="padding:1px 6px;font-size:.62rem">' + m.type + '</span></td>' +
-      '<td style="color:' + (isE?'var(--emerald)':'var(--rose)') + ';font-weight:600;font-family:var(--mono)">' + (isE?'＋':'−') + m.quantite + '</td>' +
+      '<td><span class="badge ' + badgeCls + '" style="padding:1px 6px;font-size:.62rem">' + m.type + '</span></td>' +
+      '<td style="color:' + qtyCol + ';font-weight:600;font-family:var(--mono)">' + qtySign + qtyVal + '</td>' +
       '<td class="tm" style="font-family:var(--mono)">' + (m.stock_avant !== undefined ? m.stock_avant : '—') + '</td>' +
       '<td style="font-weight:600;font-family:var(--mono);color:var(--text-h)">' + (m.stock_apres !== undefined ? m.stock_apres : '—') + '</td></tr>';
   }).join('') : '<tr><td colspan="6"><div class="empty">Aucun mouvement</div></td></tr>';
@@ -3305,6 +3393,213 @@ function _renderRotation(mvts) {
   }).join('');
 }
 
+/* ═══════════════════════════════════════════════════════════
+   INVENTAIRE PERIODIQUE
+   Flux : saisie produit-par-produit → récap des écarts → validation
+   Partiel ou complet — seuls les écarts non-nuls sont enregistrés
+═══════════════════════════════════════════════════════════ */
+
+var INV_COUNTS = {}; /* {produit_id: stock_physique_saisi} */
+
+function renderInventaire() {
+  INV_COUNTS = {};
+  document.getElementById('inv-step-count').style.display = '';
+  document.getElementById('inv-step-recap').style.display = 'none';
+  document.getElementById('inv-search').value = '';
+  _renderInvList();
+}
+
+function _renderInvList(filterQ) {
+  var el = document.getElementById('inv-list');
+  var q  = (filterQ || '').toLowerCase();
+
+  var list = S.stocks.filter(function(s) {
+    return !q || s.nom.toLowerCase().includes(q) || (s.categorie||'').toLowerCase().includes(q);
+  });
+
+  if (!list.length) {
+    el.innerHTML = '<div class="empty">Aucun produit' + (q ? ' pour "' + filterQ + '"' : '') + '</div>';
+    return;
+  }
+
+  el.innerHTML = list.map(function(s) {
+    var theo = +s.stock || 0;
+    var counted = INV_COUNTS.hasOwnProperty(s.id) ? INV_COUNTS[s.id] : '';
+    var ecart = (counted !== '' && counted !== undefined) ? (+counted - theo) : null;
+
+    var rowCls = '';
+    var ecartHtml = '<span class="inv-row-ecart zero">—</span>';
+    if (ecart !== null) {
+      if (ecart > 0) { rowCls = ' has-ecart'; ecartHtml = '<span class="inv-row-ecart pos">+' + ecart + '</span>'; }
+      else if (ecart < 0) { rowCls = ' has-ecart ecart-neg'; ecartHtml = '<span class="inv-row-ecart neg">' + ecart + '</span>'; }
+      else { ecartHtml = '<span class="inv-row-ecart zero">0</span>'; }
+    }
+
+    return '<div class="inv-row' + rowCls + '" id="inv-row-' + s.id + '">' +
+      '<div class="inv-row-info">' +
+        '<div class="inv-row-nom">' + s.nom + '</div>' +
+        '<div class="inv-row-theo">Théorique : ' + theo + ' ' + s.unite + '</div>' +
+      '</div>' +
+      '<input type="number" class="inv-row-input" inputmode="numeric" placeholder="' + theo + '" ' +
+        'value="' + counted + '" onchange="setInvCount(\'' + s.id + '\', this.value)" oninput="setInvCount(\'' + s.id + '\', this.value)">' +
+      ecartHtml +
+    '</div>';
+  }).join('');
+}
+
+function filterInvList(q) {
+  _renderInvList(q);
+}
+
+function setInvCount(produitId, val) {
+  if (val === '' || val === null) {
+    delete INV_COUNTS[produitId];
+  } else {
+    INV_COUNTS[produitId] = +val;
+  }
+  _updateInvRowDisplay(produitId);
+  _updateInvSummaryBar();
+}
+
+function _updateInvRowDisplay(produitId) {
+  var s = S.stocks.find(function(x){ return x.id === produitId; });
+  if (!s) return;
+  var row = document.getElementById('inv-row-' + produitId);
+  if (!row) return;
+
+  var theo = +s.stock || 0;
+  var counted = INV_COUNTS.hasOwnProperty(produitId) ? INV_COUNTS[produitId] : '';
+  var ecart = (counted !== '' && counted !== undefined) ? (+counted - theo) : null;
+
+  row.classList.remove('has-ecart', 'ecart-neg');
+  var ecartEl = row.querySelector('.inv-row-ecart');
+  if (ecart === null) {
+    ecartEl.className = 'inv-row-ecart zero';
+    ecartEl.textContent = '—';
+  } else if (ecart > 0) {
+    row.classList.add('has-ecart');
+    ecartEl.className = 'inv-row-ecart pos';
+    ecartEl.textContent = '+' + ecart;
+  } else if (ecart < 0) {
+    row.classList.add('has-ecart', 'ecart-neg');
+    ecartEl.className = 'inv-row-ecart neg';
+    ecartEl.textContent = ecart;
+  } else {
+    ecartEl.className = 'inv-row-ecart zero';
+    ecartEl.textContent = '0';
+  }
+}
+
+function _getInvEcarts() {
+  var ecarts = [];
+  Object.keys(INV_COUNTS).forEach(function(pid) {
+    var s = S.stocks.find(function(x){ return x.id === pid; });
+    if (!s) return;
+    var theo = +s.stock || 0;
+    var counted = +INV_COUNTS[pid];
+    var ecart = counted - theo;
+    if (ecart !== 0) {
+      ecarts.push({produit_id: pid, nom: s.nom, unite: s.unite, theo: theo, counted: counted, ecart: ecart});
+    }
+  });
+  return ecarts;
+}
+
+function _updateInvSummaryBar() {
+  var ecarts = _getInvEcarts();
+  var bar = document.getElementById('inv-summary-bar');
+  if (ecarts.length > 0) {
+    bar.style.display = 'flex';
+    document.getElementById('inv-ecart-count').textContent = ecarts.length;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function resetInventaire() {
+  if (Object.keys(INV_COUNTS).length && !confirm('Réinitialiser toutes les saisies en cours ?')) return;
+  INV_COUNTS = {};
+  document.getElementById('inv-search').value = '';
+  _renderInvList();
+  _updateInvSummaryBar();
+}
+
+/* ── Step 2: recap before validation ─────────────────────── */
+function goToInvRecap() {
+  var ecarts = _getInvEcarts();
+  if (!ecarts.length) { toast('Aucun écart à valider'); return; }
+
+  document.getElementById('inv-step-count').style.display = 'none';
+  document.getElementById('inv-step-recap').style.display = '';
+
+  var el = document.getElementById('inv-recap-list');
+  el.innerHTML = ecarts.map(function(e) {
+    var col = e.ecart > 0 ? 'var(--emerald)' : 'var(--rose)';
+    var sign = e.ecart > 0 ? '+' : '';
+    return '<div class="inv-recap-row">' +
+      '<div>' +
+        '<div style="font-weight:600;font-size:.84rem;color:var(--text-h)">' + e.nom + '</div>' +
+        '<div style="font-size:.72rem;color:var(--text-muted)">Théo: ' + e.theo + ' → Compté: ' + e.counted + ' ' + e.unite + '</div>' +
+      '</div>' +
+      '<span style="font-weight:700;font-family:var(--mono);color:' + col + '">' + sign + e.ecart + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+function backToInvCount() {
+  document.getElementById('inv-step-count').style.display = '';
+  document.getElementById('inv-step-recap').style.display = 'none';
+}
+
+/* ── Final validation: write all INVENTAIRE movements ───── */
+function validateInventaire() {
+  var ecarts = _getInvEcarts();
+  if (!ecarts.length) { toast('Aucun écart à valider'); return; }
+
+  var op = SESSION ? SESSION.nom : 'Anonyme';
+  var btn = document.getElementById('inv-validate-btn');
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement…';
+
+  if (IS_DEMO) {
+    setTimeout(function() {
+      toast(ecarts.length + ' ajustement(s) enregistré(s) ✓');
+      INV_COUNTS = {};
+      btn.disabled = false; btn.textContent = "✓ Valider l'inventaire";
+      backToInvCount();
+      renderInventaire();
+    }, 500);
+    return;
+  }
+
+  var chain = Promise.resolve();
+  var done = 0;
+
+  ecarts.forEach(function(e) {
+    chain = chain.then(function() {
+      return api({
+        action:         'addInventaire',
+        produit_id:     e.produit_id,
+        produit_nom:    e.nom,
+        stock_physique: e.counted,
+        motif:          'Inventaire periodique',
+        operateur:      op
+      }).then(function() { done++; });
+    });
+  });
+
+  chain.then(function() {
+    toast(done + ' ajustement(s) enregistré(s) ✓');
+    INV_COUNTS = {};
+    btn.disabled = false; btn.textContent = "✓ Valider l'inventaire";
+    backToInvCount();
+    doRefresh();
+  }).catch(function(e) {
+    btn.disabled = false; btn.textContent = "✓ Valider l'inventaire";
+    setErr('Erreur lors de la validation : ' + e.message);
+  });
+}
+
 function renderAlertBadge() {
   var n  = S.stocks.filter(function(s) { return +s.stock <= +s.seuil; }).length;
   var el = document.getElementById('n-alert');
@@ -3622,9 +3917,10 @@ function goTab(id, btn) {
   if (btn) btn.classList.add('on');
   var ca = document.getElementById('content-area');
   if (ca) ca.scrollTop = 0;
-  if (id==='dashboard') { drawChart('ch-dash',  chartData(S.recap)); renderAnalytics(); }
-  if (id==='recap')     drawChart('ch-recap', chartData(S.recap));
-  if (id==='equipe')    renderEquipe();
+  if (id==='dashboard')  { drawChart('ch-dash',  chartData(S.recap)); renderAnalytics(); }
+  if (id==='recap')      drawChart('ch-recap', chartData(S.recap));
+  if (id==='equipe')     renderEquipe();
+  if (id==='inventaire') renderInventaire();
   /* Re-apply search on tab switch */
   if (SEARCH_QUERY) applySearch(); else clearSearchCount();
   closeFab();
