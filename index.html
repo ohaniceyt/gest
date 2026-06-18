@@ -1074,7 +1074,7 @@ canvas{display:block;width:100%}
 
         <!-- Top produits mouvementés -->
         <div class="card">
-          <div class="card-t">Produits les plus mouvementés</div>
+          <div class="card-t">Produits les plus vendus (sorties)</div>
           <div id="top-products"></div>
         </div>
 
@@ -3308,43 +3308,41 @@ function _renderTrendChart(mvts) {
   drawChart('ch-trend', days);
 }
 
-/* ── Top products by movement volume ─────────────────────── */
+/* ── Top products by sorties volume ──────────────────────── */
 function _renderTopProducts(mvts) {
   var el = document.getElementById('top-products');
   if (!el) return;
 
   var byProduct = {};
   mvts.forEach(function(m) {
+    if (m.type !== 'SORTIE') return; /* sorties uniquement */
     var nom = m.produit_nom || '?';
-    if (!byProduct[nom]) byProduct[nom] = {total:0, entrees:0, sorties:0, nb:0};
-    var qty = +m.quantite || 0;
-    byProduct[nom].total += qty;
+    if (!byProduct[nom]) byProduct[nom] = {sorties:0, nb:0};
+    byProduct[nom].sorties += +m.quantite || 0;
     byProduct[nom].nb++;
-    if (m.type === 'ENTREE') byProduct[nom].entrees += qty;
-    else byProduct[nom].sorties += qty;
   });
 
   var sorted = Object.keys(byProduct)
     .map(function(nom) { return {nom: nom, data: byProduct[nom]}; })
-    .sort(function(a,b) { return b.data.total - a.data.total; })
+    .sort(function(a,b) { return b.data.sorties - a.data.sorties; })
     .slice(0, 8);
 
   if (!sorted.length) {
-    el.innerHTML = '<div class="empty">Aucun mouvement sur la période</div>';
+    el.innerHTML = '<div class="empty">Aucune sortie sur la période</div>';
     return;
   }
 
-  var maxTotal = sorted[0].data.total;
+  var maxSorties = sorted[0].data.sorties;
   el.innerHTML = sorted.map(function(item, idx) {
     var rankCls = idx===0?'r1':idx===1?'r2':idx===2?'r3':'';
-    var pct = maxTotal > 0 ? Math.max(4, (item.data.total / maxTotal) * 100) : 0;
+    var pct = maxSorties > 0 ? Math.max(4, (item.data.sorties / maxSorties) * 100) : 0;
     return '<div class="top-product-row">' +
       '<div class="top-rank ' + rankCls + '">' + (idx+1) + '</div>' +
       '<div class="top-product-info">' +
         '<div class="top-product-nom">' + item.nom + '</div>' +
         '<div class="top-product-bar"><div class="top-product-bar-fill" style="width:' + pct + '%"></div></div>' +
       '</div>' +
-      '<div class="top-product-val">' + item.data.total + '<div style="font-size:.62rem;color:var(--text-faint);font-weight:500">' + item.data.nb + ' mvt</div></div>' +
+      '<div class="top-product-val">' + item.data.sorties + '<div style="font-size:.62rem;color:var(--text-faint);font-weight:500">' + item.data.nb + ' mvt</div></div>' +
     '</div>';
   }).join('');
 }
