@@ -21,6 +21,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
+<!-- SheetJS for client-side Excel (.xlsx) export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
 <style>
 /* ═══ DESIGN TOKENS ═══════════════════════════════════════ */
 :root {
@@ -380,6 +383,10 @@ td{padding:10px;vertical-align:middle;color:var(--text-body)}
 /* PDF button */
 .btn-pdf{background:#dc2626;color:#fff;border-color:#dc2626;box-shadow:0 1px 3px rgba(220,38,38,.2)}
 .btn-pdf:active{background:#b91c1c}
+
+/* Excel export button */
+.btn-xls{background:#107c41;color:#fff;border-color:#107c41;box-shadow:0 1px 3px rgba(16,124,65,.25)}
+.btn-xls:active{background:#0c5e31}
 
 /* ═══ FEEDBACK ═════════════════════════════════════════════ */
 .errbar{background:var(--rose-50);border:1px solid var(--rose-200);border-radius:var(--r);padding:10px 14px;color:var(--rose-700);font-size:.8rem;font-weight:500;margin-bottom:12px;display:none;align-items:center;gap:6px}
@@ -1101,6 +1108,7 @@ canvas{display:block;width:100%}
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn btn-o btn-sm" onclick="doRefresh()">↻</button>
             <button class="btn btn-pdf btn-sm" onclick="pdfStock()">📄 PDF</button>
+            <button class="btn btn-xls btn-sm" onclick="xlsxStock()">📊 Excel</button>
             <button class="btn btn-wa btn-sm" onclick="exportWhatsApp()"><?xml version="1.0"?><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.553 4.103 1.522 5.833L0 24l6.335-1.502A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.006-1.368l-.36-.214-3.732.885.916-3.636-.235-.374A9.818 9.818 0 0112 2.182c5.424 0 9.818 4.394 9.818 9.818 0 5.425-4.394 9.818-9.818 9.818z"/></svg> WA</button>
           </div>
         </div>
@@ -1115,6 +1123,7 @@ canvas{display:block;width:100%}
             <button class="btn btn-g btn-sm" id="btn-entree-mvt" onclick="openMvt('ENTREE')">＋ Entrée</button>
             <button class="btn btn-r btn-sm" id="btn-sortie-mvt" onclick="openMvt('SORTIE')">− Sortie</button>
             <button class="btn btn-p btn-sm" id="btn-bulk-mvt"   onclick="openBulk()">⊞ En masse</button>
+            <button class="btn btn-xls btn-sm" onclick="xlsxMouvements()">📊 Excel</button>
           </div>
         </div>
         <div class="card">
@@ -1131,6 +1140,7 @@ canvas{display:block;width:100%}
           <div class="pt">Récapitulatif</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
             <button class="btn btn-pdf btn-sm" onclick="pdfRecap()">📄 PDF</button>
+            <button class="btn btn-xls btn-sm" onclick="xlsxRecap()">📊 Excel</button>
             <button class="btn btn-wa  btn-sm" onclick="whatsappRecap()">📤 WA</button>
           </div>
         </div>
@@ -1172,6 +1182,7 @@ canvas{display:block;width:100%}
           <div class="pt">Produits</div>
           <div style="display:flex;gap:6px">
             <button class="btn btn-pdf btn-sm" onclick="pdfProduits()">📄 PDF</button>
+            <button class="btn btn-xls btn-sm" onclick="xlsxProduits()">📊 Excel</button>
             <button class="btn btn-wa  btn-sm" onclick="whatsappProduits()">📤 WA</button>
             <button class="btn btn-p   btn-sm" id="btn-new-prod" onclick="openProd()">＋ Nouveau</button>
           </div>
@@ -1325,6 +1336,7 @@ canvas{display:block;width:100%}
       </div>
       <div id="benef-preview" style="font-size:.75rem;color:var(--emerald);font-weight:600;margin:-8px 0 12px;padding:4px 8px;background:var(--emerald-50);border-radius:var(--r-sm);display:none"></div>
             <div class="f"><label>Description</label><textarea id="pr-desc" rows="2" placeholder="Optionnel…"></textarea></div>
+      <div class="f"><label>Fournisseur</label><input type="text" id="pr-fournisseur" placeholder="Nom ou contact fournisseur…"></div>
       <input type="hidden" id="pr-id">
       <div id="pr-err" class="errbar"></div>
       <div class="mf">
@@ -1634,7 +1646,6 @@ function sessClear() {
 /* ── Role checks ─────────────────────────────────────────── */
 function isAdmin()     { return SESSION && SESSION.role === 'admin'; }
 function isOperateur() { return SESSION && (SESSION.role === 'admin' || SESSION.role === 'operateur'); }
-function isLoggedIn()  { return !!SESSION; }
 
 /* ── Apply role-based UI ─────────────────────────────────── */
 function applyRoleUI() {
@@ -1963,12 +1974,6 @@ function doDemo() {
   S.stocks=DEMO_S; S.produits=DEMO_P; S.mouvements=DEMO_M; S.recap=DEMO_R;
   document.getElementById('setup').classList.remove('on');
   showPinScreen();
-}
-function doResume() {
-  var u = localStorage.getItem(URL_KEY);
-  if (!u) { alert('Aucune session précédente.'); return; }
-  document.getElementById('setup-url').value = u;
-  doConnect();
 }
 function goSetup() {
   document.getElementById('app').classList.remove('on');
@@ -2443,6 +2448,177 @@ function renderRecap() {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   EXCEL (.XLSX) EXPORTS — via SheetJS, client-side, no server
+═══════════════════════════════════════════════════════════ */
+
+/* ── Shared: style header row + auto column widths ───────── */
+function _xlsxSheet(rows, headers) {
+  var ws = XLSX.utils.json_to_sheet(rows, {header: headers});
+  /* Auto column width based on content length */
+  var colWidths = headers.map(function(h) {
+    var maxLen = h.length;
+    rows.forEach(function(r) {
+      var v = r[h];
+      var len = v === undefined || v === null ? 0 : String(v).length;
+      if (len > maxLen) maxLen = len;
+    });
+    return {wch: Math.min(40, maxLen + 2)};
+  });
+  ws['!cols'] = colWidths;
+  return ws;
+}
+
+function _xlsxSave(wb, filename) {
+  XLSX.writeFile(wb, filename);
+}
+
+/* ═══ EXCEL — ÉTAT DU STOCK ════════════════════════════════ */
+function xlsxStock() {
+  var stocks = S.stocks;
+  if (!stocks.length) { toast('Aucun stock à exporter'); return; }
+  toast('Génération du fichier Excel…');
+
+  var rows = stocks.map(function(s) {
+    var isR = +s.stock === 0, isA = !isR && +s.stock <= +s.seuil;
+    var pa = +s.prix_achat || 0, pv = +s.prix_vente || 0;
+    return {
+      'Produit':       s.nom,
+      'Catégorie':     s.categorie || '',
+      'Unité':         s.unite,
+      'Stock':         s.stock,
+      'Seuil':         s.seuil,
+      'Prix achat':    pa,
+      'Prix vente':    pv,
+      'Bénéfice/u':    pv - pa,
+      'Valeur (PA)':   +s.stock * pa,
+      'Valeur (PV)':   +s.stock * pv,
+      'Statut':        isR ? 'RUPTURE' : isA ? 'ALERTE' : 'OK'
+    };
+  });
+
+  var headers = ['Produit','Catégorie','Unité','Stock','Seuil','Prix achat','Prix vente','Bénéfice/u','Valeur (PA)','Valeur (PV)','Statut'];
+  var ws = _xlsxSheet(rows, headers);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Stock');
+  _xlsxSave(wb, 'stockflow-stock-' + new Date().toISOString().slice(0,10) + '.xlsx');
+}
+
+/* ═══ EXCEL — FICHE PRODUITS ═══════════════════════════════ */
+function xlsxProduits() {
+  var produits = S.produits;
+  if (!produits.length) { toast('Aucun produit à exporter'); return; }
+  toast('Génération du fichier Excel…');
+
+  var rows = produits.map(function(p) {
+    var s   = S.stocks.find(function(x){ return x.id === p.id; });
+    var stk = s ? +s.stock : 0;
+    var pa  = +p.prix_achat || 0, pv = +p.prix_vente || 0;
+    var isR = stk === 0, isA = !isR && stk <= +p.seuil;
+    return {
+      'Nom':           p.nom,
+      'Catégorie':     p.categorie || '',
+      'Unité':         p.unite || '',
+      'Stock':         stk,
+      'Seuil':         p.seuil,
+      'Prix achat':    pa,
+      'Prix vente':    pv,
+      'Bénéfice/u':    pv - pa,
+      'Valeur stock':  stk * pa,
+      'Statut':        isR ? 'RUPTURE' : isA ? 'ALERTE' : 'OK',
+      'Description':   p.description || ''
+    };
+  });
+
+  var headers = ['Nom','Catégorie','Unité','Stock','Seuil','Prix achat','Prix vente','Bénéfice/u','Valeur stock','Statut','Description'];
+  var ws = _xlsxSheet(rows, headers);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Produits');
+  _xlsxSave(wb, 'stockflow-produits-' + new Date().toISOString().slice(0,10) + '.xlsx');
+}
+
+/* ═══ EXCEL — MOUVEMENTS (export complet) ══════════════════ */
+function xlsxMouvements() {
+  if (!S.mouvements.length) { toast('Aucun mouvement à exporter'); return; }
+  toast('Génération du fichier Excel…');
+
+  var rows = S.mouvements.map(function(m) {
+    return {
+      'Date':       fmtDShort(m.horodatage),
+      'Produit':    m.produit_nom,
+      'Type':       m.type,
+      'Quantité':   m.quantite,
+      'Stock avant':m.stock_avant !== undefined ? m.stock_avant : '',
+      'Stock après':m.stock_apres !== undefined ? m.stock_apres : '',
+      'Motif':      m.motif || '',
+      'Opérateur':  m.operateur || ''
+    };
+  });
+
+  var headers = ['Date','Produit','Type','Quantité','Stock avant','Stock après','Motif','Opérateur'];
+  var ws = _xlsxSheet(rows, headers);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Mouvements');
+  _xlsxSave(wb, 'stockflow-mouvements-' + new Date().toISOString().slice(0,10) + '.xlsx');
+}
+
+/* ═══ EXCEL — RÉCAPITULATIF (2 feuilles) ═══════════════════ */
+function xlsxRecap() {
+  var r = S.recap;
+  if (!r) { toast('Aucun récapitulatif à exporter'); return; }
+  toast('Génération du fichier Excel…');
+
+  var lbl = {jour:"Aujourd'hui", semaine:'Cette semaine', mois:'Ce mois', custom:'Période perso'}[S.periode] || S.periode;
+  if (S.periode === 'custom') {
+    var df = document.getElementById('date-from').value, dt = document.getElementById('date-to').value;
+    if (df && dt) lbl = 'Du ' + df.split('-').reverse().join('/') + ' au ' + dt.split('-').reverse().join('/');
+  }
+
+  var wb = XLSX.utils.book_new();
+
+  /* Feuille 1 — Par produit */
+  var pp = r.par_produit || {};
+  var rowsPP = Object.keys(pp).map(function(n) {
+    var d = pp[n], b = d.entrees - d.sorties;
+    return {
+      'Produit':    n,
+      'Entrées':    d.entrees,
+      'Sorties':    d.sorties,
+      'Balance':    b,
+      'Mouvements': d.nb
+    };
+  });
+  if (rowsPP.length) {
+    var ws1 = _xlsxSheet(rowsPP, ['Produit','Entrées','Sorties','Balance','Mouvements']);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Par produit');
+  }
+
+  /* Feuille 2 — Détail mouvements de la période */
+  var mvts = r._mouvements || [];
+  if (mvts.length) {
+    var rowsM = mvts.map(function(m) {
+      return {
+        'Date':      fmtDShort(m.horodatage),
+        'Produit':   m.produit_nom,
+        'Type':      m.type,
+        'Quantité':  m.quantite,
+        'Motif':     m.motif || '',
+        'Opérateur': m.operateur || ''
+      };
+    });
+    var ws2 = _xlsxSheet(rowsM, ['Date','Produit','Type','Quantité','Motif','Opérateur']);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Détail mouvements');
+  }
+
+  /* Fallback si aucune des deux feuilles n'a de données */
+  if (!wb.SheetNames.length) {
+    var wsEmpty = XLSX.utils.aoa_to_sheet([['Aucune donnée pour la période sélectionnée']]);
+    XLSX.utils.book_append_sheet(wb, wsEmpty, 'Récapitulatif');
+  }
+
+  _xlsxSave(wb, 'stockflow-recap-' + new Date().toISOString().slice(0,10) + '.xlsx');
+}
+
+/* ═══════════════════════════════════════════════════════════
    PDF & WHATSAPP EXPORTS
    jsPDF + jsPDF-AutoTable from CDN
 ═══════════════════════════════════════════════════════════ */
@@ -2843,7 +3019,6 @@ function exportWhatsApp() {
 ═══════════════════════════════════════════════════════════ */
 
 var NOTIF_KEY     = 'sf_notif_v1';    /* localStorage: permission banner dismissed */
-var PREV_ALERT_KEY = 'sf_prev_alerts'; /* localStorage: previous alert state */
 var _ruptureAlerts = [];               /* current ruptures for WA send */
 var _ruptureToastTimer = null;
 
@@ -2956,15 +3131,50 @@ function dismissRuptureToast() {
 function sendRuptureWA() {
   dismissRuptureToast();
   var now = new Date().toLocaleString('fr-FR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+
+  /* Group ruptures by fournisseur for separate orders */
+  var byFournisseur = {};
+  _ruptureAlerts.forEach(function(s) {
+    var prod = S.produits.find(function(p){ return p.id === s.id; });
+    var fourn = (prod && prod.fournisseur) ? prod.fournisseur.trim() : 'Fournisseur non renseigné';
+    if (!byFournisseur[fourn]) byFournisseur[fourn] = [];
+    byFournisseur[fourn].push(s);
+  });
+
+  var fournKeys = Object.keys(byFournisseur);
+
+  /* Single fournisseur (or all unknown) → one WhatsApp order */
+  if (fournKeys.length === 1) {
+    _openSupplierOrder(fournKeys[0], byFournisseur[fournKeys[0]], now);
+    return;
+  }
+
+  /* Multiple fournisseurs → open one order per supplier, staggered */
+  fournKeys.forEach(function(fourn, idx) {
+    setTimeout(function() {
+      _openSupplierOrder(fourn, byFournisseur[fourn], now);
+    }, idx * 600); /* stagger to avoid popup blocking */
+  });
+}
+
+/* ── Build & open a single supplier order via WhatsApp ──── */
+function _openSupplierOrder(fournisseur, produits, now) {
   var lines = [
-    '🔴 *ALERTE RUPTURE DE STOCK — StockFlow*',
+    '🛒 *COMMANDE DE RÉAPPROVISIONNEMENT*',
+    '🏭 Fournisseur : *' + fournisseur + '*',
     '🕐 ' + now,
     '─────────────────────────'
   ];
-  _ruptureAlerts.forEach(function(s) {
-    lines.push('🔴 *' + s.nom + '* : RUPTURE (seuil : ' + s.seuil + ' ' + s.unite + ')');
+
+  produits.forEach(function(s) {
+    /* Suggested order quantity = 3x threshold (standard restock heuristic) */
+    var qtySuggested = Math.max(+s.seuil * 3, 10);
+    lines.push('🔴 *' + s.nom + '*');
+    lines.push('   Stock actuel : 0 ' + s.unite + ' (seuil : ' + s.seuil + ')');
+    lines.push('   Quantité suggérée : *' + qtySuggested + ' ' + s.unite + '*');
   });
-  lines.push('\n_Notification automatique StockFlow_');
+
+  lines.push('\n_Commande générée automatiquement par StockFlow_');
   window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank');
 }
 
@@ -3794,6 +4004,7 @@ function openProd(d) {
   document.getElementById('pr-pa').value    = d&&d.prix_achat || 0;
   document.getElementById('pr-pv').value    = d&&d.prix_vente || 0;
   document.getElementById('pr-desc').value  = d&&d.desc  || '';
+  document.getElementById('pr-fournisseur').value = d&&d.fournisseur || '';
   document.getElementById('pr-id').value    = d&&d.id    || '';
   document.getElementById('pr-err').classList.remove('on');
   updateBenefPreview();
@@ -3802,7 +4013,7 @@ function openProd(d) {
 function editProd(id) {
   var p = S.produits.find(function(x) { return x.id===id; }); if (!p) return;
   var s = S.stocks.find(function(x) { return x.id===id; });
-  openProd({id:p.id, nom:p.nom, cat:p.categorie, unite:p.unite, stock:s?s.stock:0, seuil:p.seuil, prix_achat:p.prix_achat||0, prix_vente:p.prix_vente||0, desc:p.description});
+  openProd({id:p.id, nom:p.nom, cat:p.categorie, unite:p.unite, stock:s?s.stock:0, seuil:p.seuil, prix_achat:p.prix_achat||0, prix_vente:p.prix_vente||0, desc:p.description, fournisseur:p.fournisseur||''});
 }
 function saveProd() {
   var nom = document.getElementById('pr-nom').value.trim();
@@ -3819,7 +4030,8 @@ function saveProd() {
     seuil:          +document.getElementById('pr-seuil').value || 0,
     prix_achat:     +document.getElementById('pr-pa').value || 0,
     prix_vente:     +document.getElementById('pr-pv').value || 0,
-    description:    document.getElementById('pr-desc').value.trim()
+    description:    document.getElementById('pr-desc').value.trim(),
+    fournisseur:    document.getElementById('pr-fournisseur').value.trim()
   };
   if (editId) payload.id = editId;
   if (IS_DEMO) { toast(editId?'Produit mis à jour ✓':'Produit créé ✓'); closeOv('ov-prod'); return; }
@@ -3955,7 +4167,7 @@ window.addEventListener('resize', function() {
   <div class="rt-title">🔴 Alerte rupture de stock</div>
   <div class="rt-body" id="rupture-toast-body"></div>
   <div class="rt-actions">
-    <button class="rt-wa" onclick="sendRuptureWA()">📤 Envoyer sur WhatsApp</button>
+    <button class="rt-wa" onclick="sendRuptureWA()">🛒 Générer la commande</button>
     <button class="rt-dismiss" onclick="dismissRuptureToast()">Ignorer</button>
   </div>
 </div>
