@@ -410,19 +410,29 @@ canvas{display:block;width:100%}
 /* ═══ DESKTOP OVERRIDES (≥ 768px) ═════════════════════════ */
 @media(min-width:768px){
 
-  /* ── App shell — revert to normal document flow ── */
+  /* ── App shell — Grid layout merging topbar + tabnav into one row ──
+     #app's direct children are: .topbar, .content, .tabnav (siblings,
+     mobile bottom-bar order). On desktop we stack topbar+tabnav into
+     the same visual row using absolute positioning anchored to a
+     shared positioning context, then push .content full-width below. ── */
   #app.on{
-    display:block;
-    height:auto;
-    overflow:visible;
+    display:flex;
+    flex-direction:column;
+    height:100dvh;
+    overflow:hidden;
+    position:relative;
   }
   .content{
-    overflow:visible;
+    flex:1;
+    overflow-y:auto;
+    overflow-x:hidden;
     padding-bottom:0;
+    order:3;
   }
 
-  /* ── Topbar ── */
+  /* ── Topbar: logo (with room left for nav) | search | actions ── */
   .topbar{
+    order:1;
     position:sticky;
     top:0;
     z-index:100;
@@ -430,42 +440,49 @@ canvas{display:block;width:100%}
     padding-top:0;
     padding-left:20px;
     padding-right:20px;
+    display:flex;
+    align-items:center;
+    gap:18px;
   }
+  .topbar-search{ flex:1; }
 
-  /* ── Bottom nav → horizontal top nav ── */
+  /* ── Tabnav: own sticky row directly under the topbar, left-aligned
+     next to where the logo ends — visually reads as part of the same
+     header block since both share the same background/no border. ── */
   .tabnav{
+    order:2;
     position:sticky;
     top:56px;
     z-index:99;
-    height:auto;
+    height:48px;
     padding:0 20px;
     border-top:none;
     border-bottom:1px solid var(--border);
     background:rgba(255,255,255,.97);
     backdrop-filter:blur(12px) saturate(180%);
     -webkit-backdrop-filter:blur(12px) saturate(180%);
+    box-shadow:0 1px 3px rgba(0,0,0,.04);
     display:flex;
     flex-direction:row;
     flex-wrap:nowrap;
-    align-items:stretch;
-    box-shadow:0 1px 3px rgba(0,0,0,.04);
+    align-items:center;
   }
 
-  /* ── Tab items ── */
+  /* ── Tab items — compact horizontal style ── */
   .tab{
     flex:none;
     flex-direction:row;
     align-items:center;
-    gap:7px;
-    padding:0 14px;
-    height:44px;
-    border-radius:0;
-    border-bottom:2px solid transparent;
+    gap:6px;
+    padding:0 12px;
+    height:36px;
+    border-radius:var(--r);
+    border-bottom:none;
     border-top:none;
-    margin:0;
+    margin:0 1px;
     color:var(--text-muted);
     background:transparent;
-    transition:color var(--t1),border-color var(--t1),background var(--t1);
+    transition:color var(--t1),background var(--t1);
   }
   .tab:hover{
     color:var(--text-body);
@@ -473,18 +490,16 @@ canvas{display:block;width:100%}
   }
   .tab.on{
     color:var(--indigo);
-    border-bottom-color:var(--indigo);
-    background:transparent;
+    background:var(--indigo-50);
     font-weight:600;
   }
   .tab-icon{
     font-size:15px;
-    /* Prevent mobile scale animation on desktop */
     transform:none!important;
     transition:none!important;
   }
   .tab-lbl{
-    font-size:.8rem;
+    font-size:.78rem;
     font-weight:500;
     color:inherit;
   }
@@ -715,6 +730,28 @@ canvas{display:block;width:100%}
 .user-name{font-weight:600;font-size:.86rem;color:var(--text-h)}
 .user-meta{font-size:.72rem;color:var(--text-muted);margin-top:2px}
 .user-inactive{opacity:.5}
+
+/* ═══ PAGINATION ════════════════════════════════════════════ */
+.pagination{
+  display:flex;align-items:center;justify-content:center;
+  gap:4px;padding:14px 12px 4px;flex-wrap:wrap;
+}
+.pg-btn{
+  min-width:32px;height:32px;padding:0 8px;
+  border-radius:var(--r-sm);border:1px solid var(--border);
+  background:var(--surface);color:var(--text-body);
+  font-family:var(--font);font-size:.78rem;font-weight:600;
+  cursor:pointer;transition:background var(--t1),border-color var(--t1),color var(--t1);
+  display:flex;align-items:center;justify-content:center;
+}
+.pg-btn:hover:not(:disabled){background:var(--surface-2);border-color:var(--border-2)}
+.pg-btn:disabled{opacity:.35;cursor:not-allowed}
+.pg-btn.on{background:var(--indigo);border-color:var(--indigo);color:#fff}
+.pg-btn.dots{border:none;background:none;cursor:default;color:var(--text-faint)}
+.pg-info{
+  font-size:.72rem;color:var(--text-muted);
+  text-align:center;padding:0 12px 10px;
+}
 
 /* ═══ IMPORT PRODUITS ══════════════════════════════════════ */
 .import-row{
@@ -1178,6 +1215,7 @@ input.inv-row-input:focus{
             <thead><tr><th>Date</th><th>Produit</th><th>Type</th><th>Qté</th><th>Avant</th><th>Après</th></tr></thead>
             <tbody id="mvt-body"></tbody>
           </table></div>
+          <div class="pagination" id="mvt-pagination"></div>
         </div>
       </div>
 
@@ -2367,28 +2405,100 @@ function renderStock() {
   }).join('');
 }
 
+/* ═══════════════════════════════════════════════════════════
+   PAGINATION — Mouvements (12 per page)
+═══════════════════════════════════════════════════════════ */
+var MVT_PAGE_SIZE = 12;
+var MVT_CURRENT_PAGE = 1;
+
+function _mvtRowHtml(m) {
+  var isE = m.type === 'ENTREE';
+  var isI = m.type === 'INVENTAIRE';
+  var pendingBadge = m._pending
+    ? '<span style="font-size:.6rem;background:var(--amber-100);color:var(--amber-700);border:1px solid var(--amber-200);border-radius:4px;padding:1px 5px;margin-left:4px">⏳</span>'
+    : '';
+  var badgeCls = isI ? 'bd-i' : isE ? 'bd-g' : 'bd-r';
+  var qtyCol   = isI ? 'var(--indigo)' : isE ? 'var(--emerald)' : 'var(--rose)';
+  var qtySign  = isI
+    ? ((+m.stock_apres - +m.stock_avant) >= 0 ? '＋' : '−')
+    : (isE ? '＋' : '−');
+  var qtyVal   = isI ? Math.abs(+m.stock_apres - +m.stock_avant) : m.quantite;
+  return '<tr' + (m._pending ? ' style="opacity:.75"' : '') + '>' +
+    '<td class="tm">' + fmtDShort(m.horodatage) + '</td>' +
+    '<td style="font-weight:600;color:var(--text-h)">' + m.produit_nom + pendingBadge + '</td>' +
+    '<td><span class="badge ' + badgeCls + '" style="padding:1px 6px;font-size:.62rem">' + m.type + '</span></td>' +
+    '<td style="color:' + qtyCol + ';font-weight:600;font-family:var(--mono)">' + qtySign + qtyVal + '</td>' +
+    '<td class="tm" style="font-family:var(--mono)">' + (m.stock_avant !== undefined ? m.stock_avant : '—') + '</td>' +
+    '<td style="font-weight:600;font-family:var(--mono);color:var(--text-h)">' + (m.stock_apres !== undefined ? m.stock_apres : '—') + '</td></tr>';
+}
+
+/* ── Build pagination control bar ────────────────────────── */
+function _renderPagination(containerId, totalItems, currentPage, pageSize, onPageChange) {
+  var el = document.getElementById(containerId);
+  if (!el) return;
+
+  var totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+
+  var pages = [];
+  var maxVisible = 5;
+
+  if (totalPages <= maxVisible + 2) {
+    for (var i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    var start = Math.max(2, currentPage - 1);
+    var end   = Math.min(totalPages - 1, currentPage + 1);
+    if (start > 2) pages.push('…');
+    for (var j = start; j <= end; j++) pages.push(j);
+    if (end < totalPages - 1) pages.push('…');
+    pages.push(totalPages);
+  }
+
+  var html = '<button class="pg-btn" ' + (currentPage <= 1 ? 'disabled' : '') +
+    ' onclick="' + onPageChange + '(' + (currentPage - 1) + ')" title="Précédent">‹</button>';
+
+  pages.forEach(function(p) {
+    if (p === '…') {
+      html += '<span class="pg-btn dots">…</span>';
+    } else {
+      html += '<button class="pg-btn' + (p === currentPage ? ' on' : '') + '" onclick="' + onPageChange + '(' + p + ')">' + p + '</button>';
+    }
+  });
+
+  html += '<button class="pg-btn" ' + (currentPage >= totalPages ? 'disabled' : '') +
+    ' onclick="' + onPageChange + '(' + (currentPage + 1) + ')" title="Suivant">›</button>';
+
+  el.innerHTML = html;
+}
+
+function goToMvtPage(page) {
+  var totalPages = Math.max(1, Math.ceil(S.mouvements.length / MVT_PAGE_SIZE));
+  page = Math.max(1, Math.min(page, totalPages));
+  MVT_CURRENT_PAGE = page;
+  renderMouvements();
+}
+
 function renderMouvements() {
   var el = document.getElementById('mvt-body');
-  el.innerHTML = S.mouvements.length ? S.mouvements.map(function(m) {
-    var isE = m.type === 'ENTREE';
-    var isI = m.type === 'INVENTAIRE';
-    var pendingBadge = m._pending
-      ? '<span style="font-size:.6rem;background:var(--amber-100);color:var(--amber-700);border:1px solid var(--amber-200);border-radius:4px;padding:1px 5px;margin-left:4px">⏳</span>'
-      : '';
-    var badgeCls = isI ? 'bd-i' : isE ? 'bd-g' : 'bd-r';
-    var qtyCol   = isI ? 'var(--indigo)' : isE ? 'var(--emerald)' : 'var(--rose)';
-    var qtySign  = isI
-      ? ((+m.stock_apres - +m.stock_avant) >= 0 ? '＋' : '−')
-      : (isE ? '＋' : '−');
-    var qtyVal   = isI ? Math.abs(+m.stock_apres - +m.stock_avant) : m.quantite;
-    return '<tr' + (m._pending ? ' style="opacity:.75"' : '') + '>' +
-      '<td class="tm">' + fmtDShort(m.horodatage) + '</td>' +
-      '<td style="font-weight:600;color:var(--text-h)">' + m.produit_nom + pendingBadge + '</td>' +
-      '<td><span class="badge ' + badgeCls + '" style="padding:1px 6px;font-size:.62rem">' + m.type + '</span></td>' +
-      '<td style="color:' + qtyCol + ';font-weight:600;font-family:var(--mono)">' + qtySign + qtyVal + '</td>' +
-      '<td class="tm" style="font-family:var(--mono)">' + (m.stock_avant !== undefined ? m.stock_avant : '—') + '</td>' +
-      '<td style="font-weight:600;font-family:var(--mono);color:var(--text-h)">' + (m.stock_apres !== undefined ? m.stock_apres : '—') + '</td></tr>';
-  }).join('') : '<tr><td colspan="6"><div class="empty">Aucun mouvement</div></td></tr>';
+  var total = S.mouvements.length;
+
+  if (!total) {
+    el.innerHTML = '<tr><td colspan="6"><div class="empty">Aucun mouvement</div></td></tr>';
+    document.getElementById('mvt-pagination').innerHTML = '';
+    return;
+  }
+
+  var totalPages = Math.max(1, Math.ceil(total / MVT_PAGE_SIZE));
+  if (MVT_CURRENT_PAGE > totalPages) MVT_CURRENT_PAGE = totalPages;
+  if (MVT_CURRENT_PAGE < 1) MVT_CURRENT_PAGE = 1;
+
+  var startIdx = (MVT_CURRENT_PAGE - 1) * MVT_PAGE_SIZE;
+  var pageItems = S.mouvements.slice(startIdx, startIdx + MVT_PAGE_SIZE);
+
+  el.innerHTML = pageItems.map(_mvtRowHtml).join('');
+
+  _renderPagination('mvt-pagination', total, MVT_CURRENT_PAGE, MVT_PAGE_SIZE, 'goToMvtPage');
 }
 
 function renderProduits() {
@@ -3475,10 +3585,13 @@ function searchProduits(q) {
 }
 
 /* ── Search Mouvements ───────────────────────────────────── */
+var MVT_SEARCH_RESULTS = [];
+var MVT_SEARCH_PAGE = 1;
+
 function searchMouvements(q) {
   var el = document.getElementById('mvt-body');
   if (!el) return;
-  if (!q) { renderMouvements(); clearSearchCount(); return; }
+  if (!q) { MVT_CURRENT_PAGE = 1; renderMouvements(); clearSearchCount(); return; }
 
   var results = S.mouvements.filter(function(m) {
     return m.produit_nom.toLowerCase().includes(q) ||
@@ -3487,13 +3600,35 @@ function searchMouvements(q) {
            m.type.toLowerCase().includes(q);
   });
 
+  MVT_SEARCH_RESULTS = results;
+  MVT_SEARCH_PAGE = 1;
+  _renderMvtSearchPage();
+
+  showCount(results.length, S.mouvements.length, 'mouvements');
+}
+
+function goToMvtSearchPage(page) {
+  var totalPages = Math.max(1, Math.ceil(MVT_SEARCH_RESULTS.length / MVT_PAGE_SIZE));
+  page = Math.max(1, Math.min(page, totalPages));
+  MVT_SEARCH_PAGE = page;
+  _renderMvtSearchPage();
+}
+
+function _renderMvtSearchPage() {
+  var el = document.getElementById('mvt-body');
+  var results = MVT_SEARCH_RESULTS;
+  var q = SEARCH_QUERY;
+
   if (!results.length) {
     el.innerHTML = '<tr><td colspan="6"><div class="empty">Aucun résultat pour "'+SEARCH_QUERY+'"</div></td></tr>';
-    showCount(0, S.mouvements.length, 'mouvements');
+    document.getElementById('mvt-pagination').innerHTML = '';
     return;
   }
 
-  el.innerHTML = results.map(function(m) {
+  var startIdx = (MVT_SEARCH_PAGE - 1) * MVT_PAGE_SIZE;
+  var pageItems = results.slice(startIdx, startIdx + MVT_PAGE_SIZE);
+
+  el.innerHTML = pageItems.map(function(m) {
     var isE = m.type==='ENTREE';
     return '<tr>'+
       '<td class="tm">'+fmtDShort(m.horodatage)+'</td>'+
@@ -3504,7 +3639,7 @@ function searchMouvements(q) {
       '<td class="tm">'+hl(m.operateur||'—',q)+'</td></tr>';
   }).join('');
 
-  showCount(results.length, S.mouvements.length, 'mouvements');
+  _renderPagination('mvt-pagination', results.length, MVT_SEARCH_PAGE, MVT_PAGE_SIZE, 'goToMvtSearchPage');
 }
 
 /* ── Search Dashboard (filter alert list) ───────────────── */
