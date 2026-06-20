@@ -1339,6 +1339,27 @@ input.inv-row-input:focus{
         <div id="equipe-list"></div>
       </div>
 
+      <!-- JOURNAL D'ACTIVITE (admin only) -->
+      <div id="pg-activites" class="page">
+        <div class="ph">
+          <div class="pt">Journal d'activité</div>
+          <button class="btn btn-o btn-sm" onclick="doRefresh()">↻</button>
+        </div>
+        <div class="inv-controls">
+          <div class="search-wrap" style="max-width:none">
+            <span class="search-icon">⌕</span>
+            <input type="text" id="act-search" placeholder="Filtrer par acteur ou action…" oninput="filterActivites(this.value)">
+          </div>
+        </div>
+        <div class="card">
+          <div class="tw"><table>
+            <thead><tr><th>Date</th><th>Acteur</th><th>Rôle</th><th>Action</th><th>Cible</th><th>Détail</th></tr></thead>
+            <tbody id="act-body"></tbody>
+          </table></div>
+          <div class="pagination" id="act-pagination"></div>
+        </div>
+      </div>
+
     </div><!-- /wrap -->
 
   </div><!-- /content -->
@@ -1363,6 +1384,9 @@ input.inv-row-input:focus{
     </button>
     <button class="tab" id="tab-equipe" onclick="goTab('equipe',this)" style="display:none">
       <span class="tab-icon">◐</span><span class="tab-lbl">Équipe</span>
+    </button>
+    <button class="tab" id="tab-activites" onclick="goTab('activites',this)" style="display:none">
+      <span class="tab-icon">▥</span><span class="tab-lbl">Journal</span>
     </button>
   </nav>
 
@@ -1807,6 +1831,10 @@ function applyRoleUI() {
   var tabEq = document.getElementById('tab-equipe');
   if (tabEq) tabEq.style.display = isAdmin() ? '' : 'none';
 
+  /* Journal d'activite tab — admin only */
+  var tabAct = document.getElementById('tab-activites');
+  if (tabAct) tabAct.style.display = isAdmin() ? '' : 'none';
+
   /* Inventaire tab — admin + operateur only (not lecteur) */
   var tabInv = document.getElementById('tab-inventaire');
   if (tabInv) tabInv.style.display = isOperateur() ? '' : 'none';
@@ -1974,6 +2002,102 @@ function renderEquipe() {
   }).catch(function(e){ setErr(e.message); });
 }
 
+/* ═══════════════════════════════════════════════════════════
+   JOURNAL D'ACTIVITE — admin only, paginé 12/page
+═══════════════════════════════════════════════════════════ */
+var ACT_ALL        = [];  /* full activity list loaded from server */
+var ACT_FILTERED   = [];  /* after text filter applied */
+var ACT_PAGE_SIZE  = 12;
+var ACT_CURRENT_PAGE = 1;
+
+var ACT_ACTION_LABELS = {
+  'login.success':         '🔓 Connexion',
+  'login.fail':             '⚠ Échec connexion',
+  'user.create':            '👤 Création utilisateur',
+  'user.edit':               '✎ Modif. utilisateur',
+  'user.delete':             '🗑 Suppr. utilisateur',
+  'produit.edit':           '✎ Modif. produit',
+  'produit.delete':         '🗑 Suppr. produit',
+  'produit.import':         '📥 Import produits',
+  'inventaire.ajustement':  '▦ Ajustement inventaire'
+};
+
+function renderActivites() {
+  var el = document.getElementById('act-body');
+  if (!el) return;
+  if (!isAdmin()) { el.innerHTML = '<tr><td colspan="6"><div class="empty">Accès réservé aux administrateurs</div></td></tr>'; return; }
+
+  document.getElementById('act-search').value = '';
+  ACT_CURRENT_PAGE = 1;
+
+  if (IS_DEMO) {
+    ACT_ALL = [
+      {horodatage:new Date().toISOString(), acteur:'Admin', role:'admin', action:'login.success', cible:'Admin', detail:'Connexion réussie'},
+      {horodatage:new Date(Date.now()-3600000).toISOString(), acteur:'Admin', role:'admin', action:'produit.edit', cible:'Farine T55', detail:'Prix achat 1000 -> 1100'},
+      {horodatage:new Date(Date.now()-7200000).toISOString(), acteur:'Operateur', role:'operateur', action:'inventaire.ajustement', cible:'Sucre Blanc', detail:'Theo: 30 -> Compté: 28 (écart -2)'}
+    ];
+    ACT_FILTERED = ACT_ALL.slice();
+    _renderActPage();
+    return;
+  }
+
+  api({action:'listActivites', limit:300}).then(function(r) {
+    ACT_ALL = (r && r.data) ? r.data : [];
+    ACT_FILTERED = ACT_ALL.slice();
+    _renderActPage();
+  }).catch(function(e) { setErr(e.message); });
+}
+
+function filterActivites(q) {
+  q = (q||'').toLowerCase().trim();
+  ACT_FILTERED = !q ? ACT_ALL.slice() : ACT_ALL.filter(function(a) {
+    return (a.acteur||'').toLowerCase().includes(q) ||
+           (a.action||'').toLowerCase().includes(q) ||
+           (a.cible||'').toLowerCase().includes(q) ||
+           (a.detail||'').toLowerCase().includes(q);
+  });
+  ACT_CURRENT_PAGE = 1;
+  _renderActPage();
+}
+
+function goToActPage(page) {
+  var totalPages = Math.max(1, Math.ceil(ACT_FILTERED.length / ACT_PAGE_SIZE));
+  page = Math.max(1, Math.min(page, totalPages));
+  ACT_CURRENT_PAGE = page;
+  _renderActPage();
+}
+
+function _renderActPage() {
+  var el = document.getElementById('act-body');
+  var total = ACT_FILTERED.length;
+
+  if (!total) {
+    el.innerHTML = '<tr><td colspan="6"><div class="empty">Aucune activité</div></td></tr>';
+    document.getElementById('act-pagination').innerHTML = '';
+    return;
+  }
+
+  var startIdx = (ACT_CURRENT_PAGE - 1) * ACT_PAGE_SIZE;
+  var pageItems = ACT_FILTERED.slice(startIdx, startIdx + ACT_PAGE_SIZE);
+
+  el.innerHTML = pageItems.map(function(a) {
+    var isFail = a.action === 'login.fail';
+    var isSensitive = a.action === 'produit.delete' || a.action === 'user.delete';
+    var actionLabel = ACT_ACTION_LABELS[a.action] || a.action;
+    var roleCls = a.role === 'admin' ? 'role-admin' : a.role === 'operateur' ? 'role-operateur' : 'role-lecteur';
+    return '<tr>' +
+      '<td class="tm">' + fmtDShort(a.horodatage) + '</td>' +
+      '<td style="font-weight:600;color:var(--text-h)">' + (a.acteur||'—') + '</td>' +
+      '<td><span class="badge ' + roleCls + '" style="font-size:.62rem;padding:1px 6px">' + (a.role||'—') + '</span></td>' +
+      '<td style="font-size:.78rem;' + (isFail||isSensitive ? 'color:var(--rose);font-weight:600' : '') + '">' + actionLabel + '</td>' +
+      '<td class="tm">' + (a.cible||'—') + '</td>' +
+      '<td style="font-size:.74rem;color:var(--text-muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (a.detail||'').replace(/"/g,'&quot;') + '">' + (a.detail||'—') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  _renderPagination('act-pagination', total, ACT_CURRENT_PAGE, ACT_PAGE_SIZE, 'goToActPage');
+}
+
 function openUserModal(d) {
   document.getElementById('user-modal-title').textContent = d?'Modifier':'Nouvel utilisateur';
   document.getElementById('um-nom').value   = d&&d.nom    ||'';
@@ -2031,7 +2155,8 @@ function saveUser() {
   if (!nom) { err.textContent='⚠ Nom requis.'; err.classList.add('on'); return; }
   if (!editId && (!pin||pin.length<4)) { err.textContent='⚠ PIN de 4 chiffres minimum requis.'; err.classList.add('on'); return; }
   if (IS_DEMO) { toast(editId?'Utilisateur mis à jour ✓':'Utilisateur créé ✓'); closeOv('ov-user'); return; }
-  var payload = {action:editId?'editUser':'addUser', nom:nom, role:role, actif:actif==='true'};
+  var payload = {action:editId?'editUser':'addUser', nom:nom, role:role, actif:actif==='true',
+                 operateur: SESSION ? SESSION.nom : 'Anonyme', operateur_role: SESSION ? SESSION.role : '-'};
   if (editId) payload.id = editId;
   if (pin && pin.length>=4) payload.pin = pin;
   api(payload)
@@ -2042,7 +2167,7 @@ function saveUser() {
 function deleteUser(id) {
   if (!confirm('Supprimer cet utilisateur ?')) return;
   if (IS_DEMO) { toast('Utilisateur supprimé'); renderEquipe(); return; }
-  api({action:'delUser', id:id})
+  api({action:'delUser', id:id, operateur: SESSION ? SESSION.nom : 'Anonyme', operateur_role: SESSION ? SESSION.role : '-'})
     .then(function(){ toast('Utilisateur supprimé'); renderEquipe(); })
     .catch(function(e){ setErr(e.message); });
 }
@@ -4107,7 +4232,8 @@ function validateInventaire() {
         produit_nom:    e.nom,
         stock_physique: e.counted,
         motif:          'Inventaire periodique',
-        operateur:      op
+        operateur:      op,
+        operateur_role: SESSION ? SESSION.role : '-'
       }).then(function() { done++; });
     });
   });
@@ -4321,7 +4447,8 @@ function confirmImport() {
   }
 
   var op = SESSION ? SESSION.nom : 'Anonyme';
-  api({action:'bulkAddProduits', produits: payload, operateur: op})
+  var opRole = SESSION ? SESSION.role : '-';
+  api({action:'bulkAddProduits', produits: payload, operateur: op, operateur_role: opRole})
     .then(function(r) {
       if (r && r.ok) {
         _showImportResult(r.imported, r.skipped || []);
@@ -4582,7 +4709,9 @@ function saveProd() {
     prix_achat:     +document.getElementById('pr-pa').value || 0,
     prix_vente:     +document.getElementById('pr-pv').value || 0,
     description:    document.getElementById('pr-desc').value.trim(),
-    fournisseur:    document.getElementById('pr-fournisseur').value.trim()
+    fournisseur:    document.getElementById('pr-fournisseur').value.trim(),
+    operateur:      SESSION ? SESSION.nom : 'Anonyme',
+    operateur_role: SESSION ? SESSION.role : '-'
   };
   if (editId) payload.id = editId;
   if (IS_DEMO) { toast(editId?'Produit mis à jour ✓':'Produit créé ✓'); closeOv('ov-prod'); return; }
@@ -4593,7 +4722,7 @@ function saveProd() {
 function deleteProd(id) {
   if (!confirm('Supprimer ce produit ?')) return;
   if (IS_DEMO) { toast('Produit supprimé'); return; }
-  api({action:'delProduit', id:id})
+  api({action:'delProduit', id:id, operateur: SESSION ? SESSION.nom : 'Anonyme', operateur_role: SESSION ? SESSION.role : '-'})
     .then(function() { toast('Produit supprimé'); doRefresh(); })
     .catch(function(e) { setErr(e.message); });
 }
@@ -4681,6 +4810,7 @@ function goTab(id, btn) {
   if (id==='dashboard')  { drawChart('ch-dash',  chartData(S.recap)); renderAnalytics(); }
   if (id==='recap')      drawChart('ch-recap', chartData(S.recap));
   if (id==='equipe')     renderEquipe();
+  if (id==='activites')  renderActivites();
   if (id==='inventaire') renderInventaire();
   /* Re-apply search on tab switch */
   if (SEARCH_QUERY) applySearch(); else clearSearchCount();
