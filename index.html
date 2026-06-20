@@ -733,42 +733,75 @@ canvas{display:block;width:100%}
 
 /* ═══ INVENTAIRE PERIODIQUE ════════════════════════════════ */
 .inv-controls{
-  display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;
+  display:flex;gap:8px;margin-bottom:14px;align-items:center;
+}
+#inv-search{
+  flex:1;min-width:0;
+}
+
+.inv-list{
+  display:flex;flex-direction:column;gap:8px;
+  padding-bottom:8px;
 }
 .inv-row{
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r-md);padding:12px 14px;margin-bottom:8px;
+  border-radius:var(--r-md);padding:12px 14px;
   display:flex;align-items:center;gap:12px;
+  box-shadow:var(--shadow-xs);
   transition:border-color var(--t1),background var(--t1);
 }
 .inv-row.has-ecart{border-color:var(--amber-200);background:var(--amber-50)}
 .inv-row.has-ecart.ecart-neg{border-color:var(--rose-200);background:var(--rose-50)}
+
 .inv-row-info{flex:1;min-width:0}
-.inv-row-nom{font-size:.86rem;font-weight:600;color:var(--text-h)}
-.inv-row-theo{font-size:.72rem;color:var(--text-muted);margin-top:1px}
-.inv-row-input{
-  width:72px;text-align:center;font-size:16px;font-weight:700;
-  padding:8px 4px;border-radius:var(--r-sm);
+.inv-row-nom{
+  font-size:.86rem;font-weight:600;color:var(--text-h);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
+.inv-row-theo{font-size:.72rem;color:var(--text-muted);margin-top:2px}
+
+/* Specificity high enough to override global input[type=number] rules */
+input.inv-row-input{
+  width:64px;flex:none;
+  text-align:center;font-size:16px;font-weight:700;
+  padding:9px 4px;border-radius:var(--r-sm);
+  border:1.5px solid var(--border-2);
+  background:var(--surface);
+}
+input.inv-row-input:focus{
+  border-color:var(--indigo);
+  box-shadow:0 0 0 3px rgba(79,70,229,.12);
+}
+.inv-row.has-ecart input.inv-row-input{border-color:var(--amber-200)}
+.inv-row.has-ecart.ecart-neg input.inv-row-input{border-color:var(--rose-200)}
+
 .inv-row-ecart{
-  font-size:.74rem;font-weight:700;font-family:var(--mono);
-  min-width:50px;text-align:right;
+  font-size:.78rem;font-weight:700;font-family:var(--mono);
+  min-width:42px;text-align:right;flex:none;
 }
 .inv-row-ecart.pos{color:var(--emerald)}
 .inv-row-ecart.neg{color:var(--rose)}
 .inv-row-ecart.zero{color:var(--text-faint);font-weight:500}
+
+/* Sticky summary bar — anchored within the page wrap, no negative-margin hack */
 .inv-summary-bar{
-  position:sticky;bottom:calc(var(--tabnav-h) + var(--sab));
-  background:var(--surface);border-top:1px solid var(--border);
-  padding:12px 16px;box-shadow:0 -4px 16px rgba(0,0,0,.06);
+  position:sticky;
+  bottom:calc(var(--tabnav-h) + var(--sab) + 10px);
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r-lg);
+  padding:12px 16px;
+  box-shadow:var(--shadow-lg);
   display:flex;justify-content:space-between;align-items:center;gap:12px;
-  margin:0 -16px;
+  margin-top:10px;
+  z-index:5;
 }
 .inv-summary-text{font-size:.78rem;color:var(--text-muted)}
-.inv-summary-text b{color:var(--text-h)}
+.inv-summary-text b{color:var(--text-h);font-weight:700}
+
 .inv-recap-row{
   display:flex;justify-content:space-between;align-items:center;
-  padding:10px 0;border-bottom:1px solid var(--border);
+  gap:10px;padding:11px 0;border-bottom:1px solid var(--border);
 }
 .inv-recap-row:last-child{border-bottom:none}
 
@@ -838,14 +871,13 @@ canvas{display:block;width:100%}
   background:var(--surface);
 }
 .search-icon{font-size:.8rem;opacity:.5;flex-shrink:0}
-#search-input{
-  flex:1;border:none;background:transparent;
-  font-family:var(--font);font-size:.82rem;color:var(--text-h);
-  padding:7px 0;outline:none;min-width:0;
-  /* prevent iOS zoom */
-  font-size:16px;
+.search-wrap input[type=text]{
+  flex:1;border:none!important;background:transparent!important;
+  font-family:var(--font);font-size:16px;color:var(--text-h);
+  padding:7px 0!important;outline:none;min-width:0;
+  border-radius:0!important;box-shadow:none!important;
 }
-#search-input::placeholder{color:var(--text-faint);font-size:.78rem}
+.search-wrap input[type=text]::placeholder{color:var(--text-faint);font-size:.78rem}
 .search-clear{
   background:none;border:none;color:var(--text-faint);
   cursor:pointer;font-size:.8rem;padding:2px 4px;
@@ -1215,15 +1247,18 @@ canvas{display:block;width:100%}
       <div id="pg-inventaire" class="page">
         <div class="ph">
           <div class="pt">Inventaire</div>
+          <button class="btn btn-o btn-sm" onclick="resetInventaire()">↻ Réinitialiser</button>
         </div>
 
         <!-- STEP 1: counting -->
         <div id="inv-step-count">
           <div class="inv-controls">
-            <input type="text" id="inv-search" placeholder="🔍 Filtrer un produit…" style="flex:1" oninput="filterInvList(this.value)">
-            <button class="btn btn-o btn-sm" onclick="resetInventaire()">↻ Réinitialiser</button>
+            <div class="search-wrap" style="max-width:none">
+              <span class="search-icon">⌕</span>
+              <input type="text" id="inv-search" placeholder="Filtrer un produit…" oninput="filterInvList(this.value)">
+            </div>
           </div>
-          <div id="inv-list"></div>
+          <div id="inv-list" class="inv-list"></div>
           <div class="inv-summary-bar" id="inv-summary-bar" style="display:none">
             <div class="inv-summary-text"><b id="inv-ecart-count">0</b> écart(s) détecté(s)</div>
             <button class="btn btn-p btn-sm" onclick="goToInvRecap()">Voir le récap →</button>
@@ -1272,10 +1307,10 @@ canvas{display:block;width:100%}
       <span class="tab-icon">⊕</span><span class="tab-lbl">Produits</span>
     </button>
     <button class="tab" id="tab-inventaire" onclick="goTab('inventaire',this)">
-      <span class="tab-icon">📋</span><span class="tab-lbl">Inventaire</span>
+      <span class="tab-icon">▦</span><span class="tab-lbl">Inventaire</span>
     </button>
     <button class="tab" id="tab-equipe" onclick="goTab('equipe',this)" style="display:none">
-      <span class="tab-icon">👥</span><span class="tab-lbl">Équipe</span>
+      <span class="tab-icon">◐</span><span class="tab-lbl">Équipe</span>
     </button>
   </nav>
 
