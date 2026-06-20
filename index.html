@@ -716,6 +716,21 @@ canvas{display:block;width:100%}
 .user-meta{font-size:.72rem;color:var(--text-muted);margin-top:2px}
 .user-inactive{opacity:.5}
 
+/* ═══ IMPORT PRODUITS ══════════════════════════════════════ */
+.import-row{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 10px;border-bottom:1px solid var(--border);
+  font-size:.8rem;
+}
+.import-row:last-child{border-bottom:none}
+.import-row.err{background:var(--rose-50)}
+.import-row.skip{background:var(--surface-2);opacity:.7}
+.import-row-icon{width:18px;text-align:center;flex-shrink:0;font-size:.85rem}
+.import-row-info{flex:1;min-width:0}
+.import-row-nom{font-weight:600;color:var(--text-h)}
+.import-row-detail{font-size:.7rem;color:var(--text-muted);margin-top:1px}
+.import-row-detail.err{color:var(--rose-700)}
+
 /* ═══ INVENTAIRE PERIODIQUE ════════════════════════════════ */
 .inv-controls{
   display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;
@@ -1184,6 +1199,7 @@ canvas{display:block;width:100%}
             <button class="btn btn-pdf btn-sm" onclick="pdfProduits()">📄 PDF</button>
             <button class="btn btn-xls btn-sm" onclick="xlsxProduits()">📊 Excel</button>
             <button class="btn btn-wa  btn-sm" onclick="whatsappProduits()">📤 WA</button>
+            <button class="btn btn-o   btn-sm" id="btn-import-prod" onclick="openImportModal()">📥 Importer</button>
             <button class="btn btn-p   btn-sm" id="btn-new-prod" onclick="openProd()">＋ Nouveau</button>
           </div>
         </div>
@@ -1347,7 +1363,49 @@ canvas{display:block;width:100%}
   </div>
 </div>
 
-<!-- MODAL — Mouvements en masse -->
+<!-- MODAL — Import produits en masse -->
+<div id="ov-import" class="ov">
+  <div class="modal" style="max-width:560px">
+    <div class="sheet-handle"></div>
+    <div class="sheet-body">
+      <div class="mh">
+        <div class="mt">Importer des produits</div>
+        <button class="mx" onclick="closeOv('ov-import')">✕</button>
+      </div>
+
+      <!-- STEP 1: file selection -->
+      <div id="import-step-select">
+        <div class="f">
+          <label>Fichier Excel (.xlsx) ou CSV</label>
+          <input type="file" id="import-file-input" accept=".xlsx,.xls,.csv" onchange="handleImportFile(this.files[0])">
+        </div>
+        <div style="font-size:.76rem;color:var(--text-muted);line-height:1.6;margin:8px 0 14px;padding:10px 12px;background:var(--surface-2);border-radius:var(--r-sm)">
+          Colonnes attendues : <b>Nom</b> (obligatoire), Catégorie, Unité, Stock initial, Seuil, Prix achat, Prix vente, Fournisseur, Description.
+        </div>
+        <button class="btn btn-o btn-full" onclick="downloadImportTemplate()">📥 Télécharger le modèle Excel</button>
+      </div>
+
+      <!-- STEP 2: preview & validation -->
+      <div id="import-step-preview" style="display:none">
+        <div id="import-summary" style="font-size:.8rem;font-weight:600;margin-bottom:10px"></div>
+        <div id="import-preview-list" style="max-height:320px;overflow-y:auto"></div>
+        <div id="import-err" class="errbar"></div>
+        <div class="mf" style="margin-top:14px">
+          <button class="btn btn-p btn-full" id="import-confirm-btn" onclick="confirmImport()">Importer</button>
+          <button class="btn btn-o btn-full" onclick="resetImportModal()">← Recommencer</button>
+        </div>
+      </div>
+
+      <!-- STEP 3: result -->
+      <div id="import-step-result" style="display:none">
+        <div id="import-result-summary"></div>
+        <div class="mf" style="margin-top:14px">
+          <button class="btn btn-p btn-full" onclick="closeOv('ov-import')">Fermer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <div id="ov-bulk" class="ov">
   <div class="modal">
     <div class="sheet-handle"></div>
@@ -1679,7 +1737,7 @@ function applyRoleUI() {
   });
 
   /* Product management — admin only */
-  ['btn-new-prod'].forEach(function(id){
+  ['btn-new-prod', 'btn-import-prod'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.style.display = isAdmin() ? '' : 'none';
   });
@@ -3806,6 +3864,243 @@ function validateInventaire() {
     btn.disabled = false; btn.textContent = "✓ Valider l'inventaire";
     setErr('Erreur lors de la validation : ' + e.message);
   });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   IMPORT PRODUITS EN MASSE (Excel/CSV)
+   Flux : sélection fichier → parsing → aperçu/validation → confirmation
+═══════════════════════════════════════════════════════════ */
+
+var IMPORT_PARSED = []; /* parsed + validated rows ready for import */
+
+/* ── Open / reset modal ──────────────────────────────────── */
+function openImportModal() {
+  resetImportModal();
+  openOv('ov-import');
+}
+
+function resetImportModal() {
+  IMPORT_PARSED = [];
+  document.getElementById('import-step-select').style.display  = '';
+  document.getElementById('import-step-preview').style.display = 'none';
+  document.getElementById('import-step-result').style.display  = 'none';
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('import-err').classList.remove('on');
+}
+
+/* ── Download Excel template ─────────────────────────────── */
+function downloadImportTemplate() {
+  if (typeof XLSX === 'undefined') { toast('Bibliothèque Excel non chargée'); return; }
+  var sample = [
+    {'Nom':'Farine T55','Catégorie':'Épicerie','Unité':'kg','Stock initial':50,'Seuil':10,'Prix achat':1000,'Prix vente':1200,'Fournisseur':'','Description':''},
+    {'Nom':'Sucre Blanc','Catégorie':'Épicerie','Unité':'kg','Stock initial':30,'Seuil':5,'Prix achat':650,'Prix vente':800,'Fournisseur':'','Description':''}
+  ];
+  var headers = ['Nom','Catégorie','Unité','Stock initial','Seuil','Prix achat','Prix vente','Fournisseur','Description'];
+  var ws = XLSX.utils.json_to_sheet(sample, {header: headers});
+  ws['!cols'] = headers.map(function(h){ return {wch: Math.max(14, h.length+2)}; });
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Produits');
+  XLSX.writeFile(wb, 'stockflow-modele-import.xlsx');
+}
+
+/* ── Handle file selection: parse Excel or CSV ──────────── */
+function handleImportFile(file) {
+  if (!file) return;
+  if (typeof XLSX === 'undefined') { toast('Bibliothèque Excel non chargée — réessayez'); return; }
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var data = new Uint8Array(e.target.result);
+      var wb   = XLSX.read(data, {type:'array'});
+      var ws   = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      _processImportRows(rows);
+    } catch (err) {
+      toast('⚠ Impossible de lire le fichier : ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ── Normalize column names (tolerant to accents/case) ───── */
+function _normKey(k) {
+  return String(k).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') /* strip accents */
+    .replace(/[^a-z0-9]/g, '');
+}
+
+var IMPORT_COL_MAP = {
+  nom:           ['nom','name','produit','article'],
+  categorie:     ['categorie','category','cat'],
+  unite:         ['unite','unit'],
+  stockinitial:  ['stockinitial','stock','quantite','qty'],
+  seuil:         ['seuil','threshold','alerte'],
+  prixachat:     ['prixachat','pa','prixdachat','costprice'],
+  prixvente:     ['prixvente','pv','sellingprice'],
+  fournisseur:   ['fournisseur','supplier'],
+  description:   ['description','desc']
+};
+
+function _mapRow(rawRow) {
+  var out = {};
+  var rawKeys = Object.keys(rawRow);
+  Object.keys(IMPORT_COL_MAP).forEach(function(field) {
+    var aliases = IMPORT_COL_MAP[field];
+    for (var i = 0; i < rawKeys.length; i++) {
+      var normalized = _normKey(rawKeys[i]);
+      if (aliases.indexOf(normalized) !== -1) {
+        out[field] = rawRow[rawKeys[i]];
+        return;
+      }
+    }
+  });
+  return out;
+}
+
+/* ── Validate & build preview ────────────────────────────── */
+function _processImportRows(rawRows) {
+  if (!rawRows.length) {
+    toast('Fichier vide ou format non reconnu');
+    return;
+  }
+
+  var existingNames = {};
+  S.produits.forEach(function(p) { existingNames[p.nom.toLowerCase().trim()] = true; });
+
+  var seenInFile = {};
+  IMPORT_PARSED = rawRows.map(function(raw) {
+    var m = _mapRow(raw);
+    var nom = String(m.nom || '').trim();
+
+    var item = {
+      nom:           nom,
+      categorie:     String(m.categorie || '').trim(),
+      unite:         String(m.unite || 'unite').trim(),
+      stock_initial: Number(m.stockinitial) || 0,
+      seuil:         Number(m.seuil) || 0,
+      prix_achat:    Number(m.prixachat) || 0,
+      prix_vente:    Number(m.prixvente) || 0,
+      fournisseur:   String(m.fournisseur || '').trim(),
+      description:   String(m.description || '').trim(),
+      _status: 'ok', _reason: ''
+    };
+
+    if (!nom) {
+      item._status = 'err'; item._reason = 'Nom manquant';
+    } else if (existingNames[nom.toLowerCase()]) {
+      item._status = 'skip'; item._reason = 'Existe déjà dans StockFlow';
+    } else if (seenInFile[nom.toLowerCase()]) {
+      item._status = 'skip'; item._reason = 'Doublon dans le fichier';
+    } else {
+      seenInFile[nom.toLowerCase()] = true;
+    }
+
+    return item;
+  });
+
+  _renderImportPreview();
+}
+
+/* ── Render preview list with validation status ──────────── */
+function _renderImportPreview() {
+  document.getElementById('import-step-select').style.display  = 'none';
+  document.getElementById('import-step-preview').style.display = '';
+
+  var ok   = IMPORT_PARSED.filter(function(i){ return i._status === 'ok'; });
+  var err  = IMPORT_PARSED.filter(function(i){ return i._status === 'err'; });
+  var skip = IMPORT_PARSED.filter(function(i){ return i._status === 'skip'; });
+
+  document.getElementById('import-summary').innerHTML =
+    '✓ <span style="color:var(--emerald)">' + ok.length + ' à importer</span>' +
+    (skip.length ? '  ·  ⊘ <span style="color:var(--text-muted)">' + skip.length + ' ignoré(s)</span>' : '') +
+    (err.length  ? '  ·  ⚠ <span style="color:var(--rose)">' + err.length + ' erreur(s)</span>'        : '');
+
+  var el = document.getElementById('import-preview-list');
+  el.innerHTML = IMPORT_PARSED.map(function(item) {
+    var icon = item._status === 'ok' ? '✓' : item._status === 'skip' ? '⊘' : '⚠';
+    var cls  = item._status === 'err' ? 'err' : item._status === 'skip' ? 'skip' : '';
+    var detail = item._status === 'ok'
+      ? (item.categorie || 'Sans catégorie') + ' · Stock: ' + item.stock_initial + ' ' + item.unite
+      : item._reason;
+    return '<div class="import-row ' + cls + '">' +
+      '<div class="import-row-icon">' + icon + '</div>' +
+      '<div class="import-row-info">' +
+        '<div class="import-row-nom">' + (item.nom || '(sans nom)') + '</div>' +
+        '<div class="import-row-detail' + (item._status==='err'?' err':'') + '">' + detail + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  var btn = document.getElementById('import-confirm-btn');
+  btn.disabled = ok.length === 0;
+  btn.textContent = ok.length ? 'Importer ' + ok.length + ' produit(s)' : 'Aucun produit valide';
+}
+
+/* ── Confirm: send to Code.gs in one batch call ──────────── */
+function confirmImport() {
+  var toImport = IMPORT_PARSED.filter(function(i){ return i._status === 'ok'; });
+  if (!toImport.length) return;
+
+  var btn = document.getElementById('import-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = 'Import en cours…';
+
+  var payload = toImport.map(function(item) {
+    return {
+      nom: item.nom, categorie: item.categorie, unite: item.unite,
+      stock_initial: item.stock_initial, seuil: item.seuil,
+      prix_achat: item.prix_achat, prix_vente: item.prix_vente,
+      fournisseur: item.fournisseur, description: item.description
+    };
+  });
+
+  if (IS_DEMO) {
+    setTimeout(function() {
+      _showImportResult(payload.length, []);
+    }, 600);
+    return;
+  }
+
+  var op = SESSION ? SESSION.nom : 'Anonyme';
+  api({action:'bulkAddProduits', produits: payload, operateur: op})
+    .then(function(r) {
+      if (r && r.ok) {
+        _showImportResult(r.imported, r.skipped || []);
+        doRefresh();
+      } else {
+        var err = document.getElementById('import-err');
+        err.textContent = '⚠ ' + (r ? r.error : 'Erreur inconnue');
+        err.classList.add('on');
+        btn.disabled = false;
+        btn.textContent = 'Réessayer';
+      }
+    })
+    .catch(function(e) {
+      var err = document.getElementById('import-err');
+      err.textContent = '⚠ ' + e.message;
+      err.classList.add('on');
+      btn.disabled = false;
+      btn.textContent = 'Réessayer';
+    });
+}
+
+/* ── Final result screen ─────────────────────────────────── */
+function _showImportResult(importedCount, skipped) {
+  document.getElementById('import-step-preview').style.display = 'none';
+  document.getElementById('import-step-result').style.display  = '';
+
+  var html = '<div style="text-align:center;padding:16px 0">' +
+    '<div style="font-size:2.2rem;margin-bottom:8px">✅</div>' +
+    '<div style="font-size:1rem;font-weight:700;color:var(--text-h)">' + importedCount + ' produit(s) importé(s)</div>';
+
+  if (skipped.length) {
+    html += '<div style="font-size:.78rem;color:var(--text-muted);margin-top:8px">' + skipped.length + ' ligne(s) ignorée(s) (doublons)</div>';
+  }
+  html += '</div>';
+
+  document.getElementById('import-result-summary').innerHTML = html;
+  toast(importedCount + ' produit(s) importé(s) ✓');
 }
 
 function renderAlertBadge() {
