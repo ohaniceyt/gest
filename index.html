@@ -1150,14 +1150,21 @@ input.inv-row-input:focus{
         <div class="sg" id="d-stats"></div>
         <div class="card"><div class="card-t">Flux 7 derniers jours</div><canvas id="ch-dash" height="160"></canvas></div>
 
-        <!-- Analytics: trends 30/90 jours -->
+        <!-- Analytics: trends 30/90j or custom range -->
         <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
             <div class="card-t" style="margin-bottom:0">Tendance</div>
             <div class="analytics-period">
               <button class="btn btn-p btn-sm" id="ap-30" onclick="setAnalyticsPeriod(30)">30j</button>
               <button class="btn btn-o btn-sm" id="ap-90" onclick="setAnalyticsPeriod(90)">90j</button>
+              <button class="btn btn-o btn-sm" id="ap-custom" onclick="setAnalyticsPeriod('custom')">Dates</button>
             </div>
+          </div>
+          <div class="date-range" id="analytics-date-row" style="display:none;margin-bottom:12px">
+            <label>Du</label>
+            <input type="date" id="analytics-date-from" onchange="applyAnalyticsCustomDate()">
+            <span class="date-sep">au</span>
+            <input type="date" id="analytics-date-to" onchange="applyAnalyticsCustomDate()">
           </div>
           <canvas id="ch-trend" height="160"></canvas>
           <div class="analytics-note" id="trend-note"></div>
@@ -3669,23 +3676,71 @@ function searchDashboard(q) {
    All computed client-side from S.mouvements (cap: 400 rows)
 ═══════════════════════════════════════════════════════════ */
 
-var ANALYTICS_PERIOD = 30; /* days, 30 or 90 */
+var ANALYTICS_PERIOD = 30; /* 30, 90, or 'custom' */
+var ANALYTICS_FROM = null; /* ISO date string, only used when 'custom' */
+var ANALYTICS_TO   = null;
 
-function setAnalyticsPeriod(days) {
-  ANALYTICS_PERIOD = days;
-  document.getElementById('ap-30').className = 'btn btn-sm ' + (days===30 ? 'btn-p' : 'btn-o');
-  document.getElementById('ap-90').className = 'btn btn-sm ' + (days===90 ? 'btn-p' : 'btn-o');
+function setAnalyticsPeriod(period) {
+  ANALYTICS_PERIOD = period;
+
+  document.getElementById('ap-30').className     = 'btn btn-sm ' + (period===30 ? 'btn-p' : 'btn-o');
+  document.getElementById('ap-90').className     = 'btn btn-sm ' + (period===90 ? 'btn-p' : 'btn-o');
+  document.getElementById('ap-custom').className = 'btn btn-sm ' + (period==='custom' ? 'btn-p' : 'btn-o');
+
+  var row = document.getElementById('analytics-date-row');
+  if (period === 'custom') {
+    row.style.display = 'flex';
+    /* Sensible default: last 30 days, if not already set */
+    var df = document.getElementById('analytics-date-from');
+    var dt = document.getElementById('analytics-date-to');
+    if (!df.value || !dt.value) {
+      var now = new Date();
+      var from = new Date(); from.setDate(now.getDate() - 29);
+      dt.value = now.toISOString().slice(0,10);
+      df.value = from.toISOString().slice(0,10);
+    }
+    applyAnalyticsCustomDate();
+    return;
+  }
+
+  row.style.display = 'none';
   renderAnalytics();
 }
 
-/* ── Filter movements within N days ─────────────────────── */
-function _mvtsWithinDays(days) {
-  var cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  cutoff.setHours(0,0,0,0);
-  var cutoffISO = cutoff.toISOString();
+function applyAnalyticsCustomDate() {
+  var df = document.getElementById('analytics-date-from');
+  var dt = document.getElementById('analytics-date-to');
+  if (!df.value || !dt.value) return;
+
+  if (df.value > dt.value) {
+    var tmp = df.value; df.value = dt.value; dt.value = tmp;
+  }
+
+  ANALYTICS_FROM = df.value;
+  ANALYTICS_TO   = dt.value;
+  renderAnalytics();
+}
+
+/* ── Filter movements within the active period (days or custom range) ── */
+function _mvtsWithinDays(period) {
+  var fromISO, toISO;
+
+  if (period === 'custom' && ANALYTICS_FROM && ANALYTICS_TO) {
+    fromISO = ANALYTICS_FROM + 'T00:00:00';
+    toISO   = ANALYTICS_TO   + 'T23:59:59';
+  } else {
+    var cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - period);
+    cutoff.setHours(0,0,0,0);
+    fromISO = cutoff.toISOString();
+    toISO   = null;
+  }
+
   return S.mouvements.filter(function(m) {
-    return m.horodatage && m.horodatage >= cutoffISO;
+    if (!m.horodatage) return false;
+    if (fromISO && m.horodatage < fromISO) return false;
+    if (toISO   && m.horodatage > toISO)   return false;
+    return true;
   });
 }
 
@@ -3702,6 +3757,13 @@ function renderAnalytics() {
 function _renderTrendNote(mvts) {
   var note = document.getElementById('trend-note');
   if (!note) return;
+
+  if (ANALYTICS_PERIOD === 'custom') {
+    var lbl = ANALYTICS_FROM.split('-').reverse().join('/') + ' au ' + ANALYTICS_TO.split('-').reverse().join('/');
+    note.textContent = mvts.length + ' mouvement(s) du ' + lbl;
+    return;
+  }
+
   var oldestLoaded = S.mouvements.length
     ? S.mouvements[S.mouvements.length - 1].horodatage
     : null;
@@ -3726,21 +3788,41 @@ function _renderTrendChart(mvts) {
     else byDay[day].sorties += qty;
   });
 
-  /* Build full day range so the chart isn't sparse */
   var days = [];
-  var step = ANALYTICS_PERIOD <= 30 ? 1 : 3; /* sample every 3 days for 90j to keep chart readable */
-  for (var i = ANALYTICS_PERIOD - 1; i >= 0; i -= step) {
-    var d = new Date();
-    d.setDate(d.getDate() - i);
-    var key = d.toISOString().slice(0,10);
-    var agg = {entrees:0, sorties:0};
-    /* For 90j sampling, aggregate the step-day window */
-    for (var j = 0; j < step; j++) {
-      var d2 = new Date(d); d2.setDate(d.getDate() + j);
-      var k2 = d2.toISOString().slice(0,10);
-      if (byDay[k2]) { agg.entrees += byDay[k2].entrees; agg.sorties += byDay[k2].sorties; }
+
+  if (ANALYTICS_PERIOD === 'custom') {
+    /* Build day range from explicit from/to bounds */
+    var start = new Date(ANALYTICS_FROM + 'T00:00:00');
+    var end   = new Date(ANALYTICS_TO   + 'T00:00:00');
+    var spanDays = Math.max(1, Math.round((end - start) / 86400000) + 1);
+    var step = spanDays <= 31 ? 1 : Math.ceil(spanDays / 30); /* keep chart readable */
+
+    for (var d = new Date(start); d <= end; d.setDate(d.getDate() + step)) {
+      var key = d.toISOString().slice(0,10);
+      var agg = {entrees:0, sorties:0};
+      for (var j = 0; j < step; j++) {
+        var d2 = new Date(d); d2.setDate(d.getDate() + j);
+        if (d2 > end) break;
+        var k2 = d2.toISOString().slice(0,10);
+        if (byDay[k2]) { agg.entrees += byDay[k2].entrees; agg.sorties += byDay[k2].sorties; }
+      }
+      days.push({label: key.slice(5).replace('-','/'), entrees: agg.entrees, sorties: agg.sorties});
     }
-    days.push({label: key.slice(5).replace('-','/'), entrees: agg.entrees, sorties: agg.sorties});
+  } else {
+    /* Build full day range so the chart isn't sparse */
+    var stepFixed = ANALYTICS_PERIOD <= 30 ? 1 : 3; /* sample every 3 days for 90j to keep chart readable */
+    for (var i = ANALYTICS_PERIOD - 1; i >= 0; i -= stepFixed) {
+      var dd = new Date();
+      dd.setDate(dd.getDate() - i);
+      var keyF = dd.toISOString().slice(0,10);
+      var aggF = {entrees:0, sorties:0};
+      for (var k = 0; k < stepFixed; k++) {
+        var dd2 = new Date(dd); dd2.setDate(dd.getDate() + k);
+        var k2F = dd2.toISOString().slice(0,10);
+        if (byDay[k2F]) { aggF.entrees += byDay[k2F].entrees; aggF.sorties += byDay[k2F].sorties; }
+      }
+      days.push({label: keyF.slice(5).replace('-','/'), entrees: aggF.entrees, sorties: aggF.sorties});
+    }
   }
 
   drawChart('ch-trend', days);
