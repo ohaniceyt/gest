@@ -138,6 +138,13 @@ input[type=text],input[type=number],select,textarea{
 input:focus,select:focus,textarea:focus{border-color:var(--indigo);box-shadow:0 0 0 3px rgba(79,70,229,.12)}
 input::placeholder,textarea::placeholder{color:var(--text-faint)}
 textarea{resize:vertical;min-height:72px;font-size:15px}
+.input-locked{
+  background:var(--surface-2)!important;
+  color:var(--text-muted);
+  cursor:not-allowed;
+  font-weight:600;
+}
+.input-locked:focus{border-color:var(--border)!important;box-shadow:none!important}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 
 /* ═══ BUTTONS ══════════════════════════════════════════════ */
@@ -1398,7 +1405,7 @@ input.inv-row-input:focus{
       <div class="f"><label>Produit *</label><select id="mv-prod"><option value="">— Sélectionner —</option></select></div>
       <div class="row2">
         <div class="f"><label>Quantité *</label><input type="number" id="mv-qty" min="1" value="1" inputmode="numeric"></div>
-        <div class="f"><label>Opérateur</label><input type="text" id="mv-op" placeholder="Votre nom"></div>
+        <div class="f"><label>Opérateur</label><input type="text" id="mv-op" readonly class="input-locked"></div>
       </div>
       <div class="f"><label>Motif</label><input type="text" id="mv-motif" placeholder="Réappro, production…"></div>
       <div class="tsnote">⏱ <span id="ts-now"></span></div>
@@ -1515,7 +1522,7 @@ input.inv-row-input:focus{
       <!-- Motif & Opérateur -->
       <div class="row2">
         <div class="f"><label>Motif</label><input type="text" id="bulk-motif" placeholder="Réappro, production…"></div>
-        <div class="f"><label>Opérateur</label><input type="text" id="bulk-op" placeholder="Votre nom"></div>
+        <div class="f"><label>Opérateur</label><input type="text" id="bulk-op" readonly class="input-locked"></div>
       </div>
       <!-- Summary -->
       <div class="bulk-summary" id="bulk-summary">Ajoutez des lignes ci-dessus</div>
@@ -1533,7 +1540,6 @@ input.inv-row-input:focus{
 <script>
 /* ═══ CONSTANTS — déclarés EN PREMIER pour éviter les erreurs de hoisting ═ */
 var URL_KEY = 'sf_url_v1';
-var OP_KEY  = 'sf_op';
 var Q_KEY   = 'sf_queue_v1';   /* localStorage key for pending queue */
 var CACHE_KEY = 'sf_cache_v1'; /* localStorage key for last-known data */
 var API_URL = '';
@@ -4369,7 +4375,7 @@ function openMvt(type) {
   sel.innerHTML = '<option value="">— Sélectionner —</option>' +
     S.produits.map(function(p) { return '<option value="' + p.id + '">' + p.nom + '</option>'; }).join('');
   document.getElementById('mv-qty').value   = 1;
-  document.getElementById('mv-op').value    = localStorage.getItem(OP_KEY) || '';
+  document.getElementById('mv-op').value    = SESSION ? SESSION.nom : 'Anonyme';
   document.getElementById('mv-motif').value = '';
   document.getElementById('mv-err').classList.remove('on');
   document.getElementById('ts-now').textContent = new Date().toLocaleString('fr-FR');
@@ -4392,7 +4398,6 @@ function saveMvt() {
   if (!pid)       { err.textContent='⚠ Sélectionne un produit.'; err.classList.add('on'); return; }
   if (!qty||qty<=0){ err.textContent='⚠ Quantité > 0 requise.';  err.classList.add('on'); return; }
   err.classList.remove('on');
-  if (op) localStorage.setItem(OP_KEY, op);
   var prod = S.produits.find(function(p) { return p.id === pid; });
   if (IS_DEMO) { toast(S.mvtType==='ENTREE'?'Entrée enregistrée ✓':'Sortie enregistrée ✓'); closeOv('ov-mvt'); return; }
 
@@ -4426,7 +4431,7 @@ function openBulk() {
   BULK_TYPE = 'ENTREE';
   setBulkType('ENTREE');
   document.getElementById('bulk-motif').value = '';
-  document.getElementById('bulk-op').value    = localStorage.getItem(OP_KEY) || '';
+  document.getElementById('bulk-op').value    = SESSION ? SESSION.nom : 'Anonyme';
   document.getElementById('bulk-err').classList.remove('on');
   document.getElementById('bulk-rows').innerHTML = '';
   BULK_ROW_ID = 0;
@@ -4501,7 +4506,6 @@ function saveBulk() {
   var dups={};
   var hasDup = rows.some(function(r){ if(dups[r.produit_id])return true; dups[r.produit_id]=true; return false; });
   if (hasDup) { err.textContent='⚠ Un produit apparaît plusieurs fois.'; err.classList.add('on'); return; }
-  if (op) localStorage.setItem(OP_KEY, op);
   if (IS_DEMO) { toast(BULK_TYPE==='ENTREE'?rows.length+' entrées enregistrées ✓':rows.length+' sorties enregistrées ✓'); closeOv('ov-bulk'); return; }
 
   var btn = document.getElementById('bulk-save');
