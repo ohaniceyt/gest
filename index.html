@@ -1687,7 +1687,8 @@ function apiOrQueue(mvtParams) {
     type:        mvtParams.type,
     quantite:    +mvtParams.quantite,
     motif:       mvtParams.motif    || '',
-    operateur:   mvtParams.operateur|| 'Anonyme'
+    operateur:   mvtParams.operateur|| 'Anonyme',
+    user_id:     SESSION ? SESSION.id : ''
   };
 
   if (!navigator.onLine) {
@@ -1732,7 +1733,8 @@ function syncQueue() {
         type:        op.type,
         quantite:    op.quantite,
         motif:       op.motif,
-        operateur:   op.operateur
+        operateur:   op.operateur,
+        user_id:     op.user_id || (SESSION ? SESSION.id : '')
       }).then(function() {
         qRemove(op._id); sent++;
       }).catch(function() {
@@ -2156,7 +2158,7 @@ function saveUser() {
   if (!editId && (!pin||pin.length<4)) { err.textContent='⚠ PIN de 4 chiffres minimum requis.'; err.classList.add('on'); return; }
   if (IS_DEMO) { toast(editId?'Utilisateur mis à jour ✓':'Utilisateur créé ✓'); closeOv('ov-user'); return; }
   var payload = {action:editId?'editUser':'addUser', nom:nom, role:role, actif:actif==='true',
-                 operateur: SESSION ? SESSION.nom : 'Anonyme', operateur_role: SESSION ? SESSION.role : '-'};
+                 user_id: SESSION ? SESSION.id : ''};
   if (editId) payload.id = editId;
   if (pin && pin.length>=4) payload.pin = pin;
   api(payload)
@@ -2167,7 +2169,7 @@ function saveUser() {
 function deleteUser(id) {
   if (!confirm('Supprimer cet utilisateur ?')) return;
   if (IS_DEMO) { toast('Utilisateur supprimé'); renderEquipe(); return; }
-  api({action:'delUser', id:id, operateur: SESSION ? SESSION.nom : 'Anonyme', operateur_role: SESSION ? SESSION.role : '-'})
+  api({action:'delUser', id:id, user_id: SESSION ? SESSION.id : ''})
     .then(function(){ toast('Utilisateur supprimé'); renderEquipe(); })
     .catch(function(e){ setErr(e.message); });
 }
@@ -4232,8 +4234,7 @@ function validateInventaire() {
         produit_nom:    e.nom,
         stock_physique: e.counted,
         motif:          'Inventaire periodique',
-        operateur:      op,
-        operateur_role: SESSION ? SESSION.role : '-'
+        user_id:        SESSION ? SESSION.id : ''
       }).then(function() { done++; });
     });
   });
@@ -4446,9 +4447,7 @@ function confirmImport() {
     return;
   }
 
-  var op = SESSION ? SESSION.nom : 'Anonyme';
-  var opRole = SESSION ? SESSION.role : '-';
-  api({action:'bulkAddProduits', produits: payload, operateur: op, operateur_role: opRole})
+  api({action:'bulkAddProduits', produits: payload, user_id: SESSION ? SESSION.id : ''})
     .then(function(r) {
       if (r && r.ok) {
         _showImportResult(r.imported, r.skipped || []);
@@ -4710,8 +4709,7 @@ function saveProd() {
     prix_vente:     +document.getElementById('pr-pv').value || 0,
     description:    document.getElementById('pr-desc').value.trim(),
     fournisseur:    document.getElementById('pr-fournisseur').value.trim(),
-    operateur:      SESSION ? SESSION.nom : 'Anonyme',
-    operateur_role: SESSION ? SESSION.role : '-'
+    user_id:        SESSION ? SESSION.id : ''
   };
   if (editId) payload.id = editId;
   if (IS_DEMO) { toast(editId?'Produit mis à jour ✓':'Produit créé ✓'); closeOv('ov-prod'); return; }
@@ -4722,7 +4720,7 @@ function saveProd() {
 function deleteProd(id) {
   if (!confirm('Supprimer ce produit ?')) return;
   if (IS_DEMO) { toast('Produit supprimé'); return; }
-  api({action:'delProduit', id:id, operateur: SESSION ? SESSION.nom : 'Anonyme', operateur_role: SESSION ? SESSION.role : '-'})
+  api({action:'delProduit', id:id, user_id: SESSION ? SESSION.id : ''})
     .then(function() { toast('Produit supprimé'); doRefresh(); })
     .catch(function(e) { setErr(e.message); });
 }
